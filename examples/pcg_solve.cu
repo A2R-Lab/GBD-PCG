@@ -4,19 +4,6 @@
 #include "gpuassert.cuh"
 
 
-void print_device_matrix(float *d_mat, int n, int m){
-
-    float h_mat[n*m];
-
-    cudaMemcpy(h_mat, d_mat, n*m*sizeof(float), cudaMemcpyDeviceToHost);
-    for(int row = 0; row < n; row++){
-        for(int col = 0; col < m; col++){
-            std::cout << h_mat[col*n+row] << "\t";
-        }
-        std::cout << "\n";
-    }
-}
-
 
 int main(){
 
@@ -75,3 +62,4 @@ int main(){
 
     return 0;
 }
+
