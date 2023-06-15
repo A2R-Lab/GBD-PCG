@@ -1,4 +1,5 @@
 #pragma once
+#include <iostream>
 #include <stdint.h>
 #include "gpuassert.cuh"
 #include "types.cuh"
@@ -14,7 +15,8 @@ uint32_t solvePCG(
     unsigned knotPoints, 
     pcg_config *config)
 {
-    return 1;
+    std::cout << "NOT IMPLEMENTED" << std::endl;
+    exit(12);
 }
 
 
@@ -38,6 +40,7 @@ uint32_t solvePCG(uint32_t state_size,
     gpuErrchk(cudaMallocAsync(&d_v_temp, knot_points*sizeof(T), streams[0]));
     gpuErrchk(cudaMallocAsync(&d_eta_new_temp, knot_points*sizeof(T), streams[0]));
     gpuErrchk(cudaMallocAsync(&d_iters, sizeof(uint32_t), streams[0]));
+    gpuErrchk(cudaPeekAtLastError());
 
 
 
@@ -59,11 +62,12 @@ uint32_t solvePCG(uint32_t state_size,
         (void *)&config->pcg_max_iter,
         (void *)&config->pcg_exit_tol
     };
-    gpuErrchk(cudaLaunchCooperativeKernel(pcg_kernel, knot_points, config->pcg_block, kernelArgs, pcgSharedMemSize<T>(state_size, knot_points), streams[0]));    // EMRE
-    
+    gpuErrchk(cudaLaunchCooperativeKernel(pcg_kernel, knot_points, config->pcg_block, kernelArgs, 5 * pcgSharedMemSize<T>(state_size, knot_points), streams[0]));
+    gpuErrchk(cudaPeekAtLastError());
+    gpuErrchk(cudaDeviceSynchronize());
+
     uint32_t h_iters;
     gpuErrchk(cudaMemcpy(&h_iters, d_iters, sizeof(uint32_t), cudaMemcpyDeviceToHost));
-    std::cout << "kernel returned\n";
     gpuErrchk(cudaFreeAsync(d_r, streams[0]));
     gpuErrchk(cudaFreeAsync(d_p, streams[0]));
     gpuErrchk(cudaFreeAsync(d_v_temp, streams[0]));

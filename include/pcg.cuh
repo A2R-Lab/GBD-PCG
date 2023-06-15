@@ -131,7 +131,7 @@ void pcg(uint32_t state_size,
         s_p_b[ind] = s_r_tilde[ind];
         d_p[block_x_statesize + ind] = s_p_b[ind]; 
     }
-    if(block_id==0 && thread_id==0){ for(int i = 0; i < 6; i++){ printf("%f ", d_r[i]); } }
+
 
     // eta = r * r_tilde
     glass::dot<T>(s_eta_new_b, state_size, s_r_b, s_r_tilde, block);
