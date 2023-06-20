@@ -4,6 +4,7 @@
 #include "gpuassert.cuh"
 #include "types.cuh"
 #include "pcg.cuh"
+// #include "old_pcg.cuh"
 
 template <typename T>
 uint32_t solvePCG(
@@ -21,8 +22,8 @@ uint32_t solvePCG(
 
 
 template <typename T>
-uint32_t solvePCG(uint32_t state_size,
-                  uint32_t knot_points,
+uint32_t solvePCG(const uint32_t state_size,
+                  const uint32_t knot_points,
                   T *d_S,
                   T *d_Pinv,
                   T *d_gamma,
@@ -30,26 +31,25 @@ uint32_t solvePCG(uint32_t state_size,
                   pcg_config *config)
 {
 
-    cudaStream_t streams[1];
-    gpuErrchk(cudaStreamCreate(&streams[0]));
+    // cudaStream_t streams[1];
+    // gpuErrchk(cudaStreamCreate(&streams[0]));
     
     T *d_r, *d_p, *d_v_temp, *d_eta_new_temp;
     uint32_t *d_iters;
-    gpuErrchk(cudaMallocAsync(&d_r, state_size*knot_points*sizeof(T), streams[0]));
-    gpuErrchk(cudaMallocAsync(&d_p, state_size*knot_points*sizeof(T), streams[0]));
-    gpuErrchk(cudaMallocAsync(&d_v_temp, knot_points*sizeof(T), streams[0]));
-    gpuErrchk(cudaMallocAsync(&d_eta_new_temp, knot_points*sizeof(T), streams[0]));
-    gpuErrchk(cudaMallocAsync(&d_iters, sizeof(uint32_t), streams[0]));
+    gpuErrchk(cudaMalloc(&d_r, state_size*knot_points*sizeof(T)));
+    gpuErrchk(cudaMalloc(&d_p, state_size*knot_points*sizeof(T)));
+    gpuErrchk(cudaMalloc(&d_v_temp, knot_points*sizeof(T)));
+    gpuErrchk(cudaMalloc(&d_eta_new_temp, knot_points*sizeof(T)));
+    gpuErrchk(cudaMalloc(&d_iters, sizeof(uint32_t)));
     gpuErrchk(cudaPeekAtLastError());
 
+    struct timespec pcgkernelstart, pcgkernelend;
 
+    void *pcg_kernel = (void *) pcg<T, 14, 50>;
+    // void *pcg_kernel = (void *) oldpcg::parallelPCG<T>;
 
-    void *pcg_kernel = (void *) pcg<T>;
-
-    checkPcgOccupancy<T>(pcg_kernel, config->pcg_block, state_size, knot_points);
+    // checkPcgOccupancy<T>(pcg_kernel, config->pcg_block, state_size, knot_points);
     void *kernelArgs[] = {
-        (void *)&state_size,
-        (void *)&knot_points,
         (void *)&d_S,
         (void *)&d_Pinv,
         (void *)&d_gamma, 
@@ -62,19 +62,37 @@ uint32_t solvePCG(uint32_t state_size,
         (void *)&config->pcg_max_iter,
         (void *)&config->pcg_exit_tol
     };
-    gpuErrchk(cudaLaunchCooperativeKernel(pcg_kernel, knot_points, config->pcg_block, kernelArgs, 5 * pcgSharedMemSize<T>(state_size, knot_points), streams[0]));
+    uint32_t h_iters;
+
+    size_t ppcg_kernel_smem_size = pcgSharedMemSize<T>(state_size, knot_points);
+
+    gpuErrchk(cudaDeviceSynchronize());
+    clock_gettime(CLOCK_MONOTONIC,&pcgkernelstart);
+
+    gpuErrchk(cudaLaunchCooperativeKernel(pcg_kernel, 50, 64, kernelArgs, ppcg_kernel_smem_size));    
+    
     gpuErrchk(cudaPeekAtLastError());
     gpuErrchk(cudaDeviceSynchronize());
-
-    uint32_t h_iters;
+    
+    clock_gettime(CLOCK_MONOTONIC,&pcgkernelend);
+    
+    double time = time_delta_us_timespec(pcgkernelstart,pcgkernelend);
+    std::cout << "pcg time minus setup " << time << std::endl;
     gpuErrchk(cudaMemcpy(&h_iters, d_iters, sizeof(uint32_t), cudaMemcpyDeviceToHost));
-    gpuErrchk(cudaFreeAsync(d_r, streams[0]));
-    gpuErrchk(cudaFreeAsync(d_p, streams[0]));
-    gpuErrchk(cudaFreeAsync(d_v_temp, streams[0]));
-    gpuErrchk(cudaFreeAsync(d_eta_new_temp, streams[0]));
-    gpuErrchk(cudaFreeAsync(d_iters, streams[0]));
 
-    gpuErrchk(cudaStreamDestroy(streams[0]));
+
+    // float h_temp[14];
+    // gpuErrchk(cudaMemcpy(h_temp, d_lambda, 14*sizeof(float), cudaMemcpyDeviceToHost));
+    // for(int i = 0; i < 14; i++){ std::cout << h_temp[i] << " ";}
+    // std::cout << std::endl;
+
+    gpuErrchk(cudaFree(d_r));
+    gpuErrchk(cudaFree(d_p));
+    gpuErrchk(cudaFree(d_v_temp));
+    gpuErrchk(cudaFree(d_eta_new_temp));
+    gpuErrchk(cudaFree(d_iters));
+
+    // gpuErrchk(cudaStreamDestroy(streams[0]));
 
     return h_iters;
 }
