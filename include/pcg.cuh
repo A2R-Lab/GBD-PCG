@@ -12,9 +12,11 @@ namespace cgrps = cooperative_groups;
 
 template <typename T>
 size_t pcgSharedMemSize(uint32_t state_size, uint32_t knot_points){
-    return sizeof(T) * (2*3*state_size*state_size + 
+    return sizeof(T) * max(
+                        (2*3*state_size*state_size + 
                         10 * state_size + 
-                        2*max(state_size, knot_points));
+                        2*max(state_size, knot_points)),
+                        (9 * state_size*state_size));
 }
 
 
@@ -48,12 +50,6 @@ bool checkPcgOccupancy(void* kernel, dim3 block, uint32_t state_size, uint32_t k
 
 
 
-__global__
-void test_kernel()
-{
-    return;
-}
-
 
 template <typename T, uint32_t state_size, uint32_t knot_points>
 __global__
@@ -79,8 +75,23 @@ void pcg(
     const uint32_t block_x_statesize = block_id * state_size;
     const uint32_t states_sq = state_size * state_size;
 
-    // this will break if state_size > knot_points
     extern __shared__ T s_temp[];
+
+    //
+    // complete Pinv
+    //
+    for(unsigned ind=GATO_BLOCK_ID; ind<knot_points; ind+=GATO_NUM_BLOCKS){
+        oldschur::gato_form_ss_inner(
+            state_size, knot_points,
+            d_S,
+            d_Pinv,
+            d_gamma,
+            s_temp,
+            ind
+        );
+    }
+    grid.sync();
+
 
     T  *s_S = s_temp;
     T  *s_Pinv = s_S +3*states_sq;
