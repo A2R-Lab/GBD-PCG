@@ -67,12 +67,7 @@ uint32_t solvePCG(const uint32_t state_size,
 
 
 
-    // gpuErrchk(cudaFree(d_r));
-    // gpuErrchk(cudaFree(d_p));
-    // gpuErrchk(cudaFree(d_v_temp));
-    // gpuErrchk(cudaFree(d_eta_new_temp));
     gpuErrchk(cudaFree(d_iters));
-
 
     return h_iters;
 }

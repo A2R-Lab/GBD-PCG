@@ -36,7 +36,7 @@ bool checkPcgOccupancy(void* kernel, dim3 block, uint32_t state_size, uint32_t k
         exit(5);
     }
     
-    int numProcs = static_cast<T>(deviceProp.multiProcessorCount); 
+    int numProcs = deviceProp.multiProcessorCount; 
     int numBlocksPerSm;
     gpuErrchk(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, kernel, block.x*block.y*block.z, smem_size));
 
@@ -63,6 +63,7 @@ void pcg(
          T *d_v_temp, 
          T *d_eta_new_temp,
          uint32_t *d_iters, 
+         bool *d_max_iter_exit,
          uint32_t max_iter, 
          float exit_tol)
 {   
@@ -81,7 +82,7 @@ void pcg(
     // complete Pinv
     //
     for(unsigned ind=GATO_BLOCK_ID; ind<knot_points; ind+=GATO_NUM_BLOCKS){
-        oldschur::gato_form_ss_inner(
+        oldschur::gato_form_ss_inner<T>(
             state_size, knot_points,
             d_S,
             d_Pinv,
@@ -110,7 +111,9 @@ void pcg(
 
     uint32_t iter;
     T alpha, beta, eta, eta_new;
-    
+
+    bool max_iter_exit = true;
+
     // populate shared memory
     for (unsigned ind = thread_id; ind < 3*states_sq; ind += block_dim){
         if(block_id == 0 && ind < states_sq){ continue; }
@@ -202,7 +205,7 @@ void pcg(
         __syncthreads();
         eta_new = s_eta_new_b[0];
 
-        if(abs(eta_new) < exit_tol){ iter++; break; }
+        if(abs(eta_new) < exit_tol){ iter++; max_iter_exit = false; break; }
 
         // beta = eta_new / eta
         // eta = eta_new
@@ -218,7 +221,7 @@ void pcg(
     }
 
     // save output
-    if(block_id == 0 && thread_id == 0){ d_iters[0] = iter; }
+    if(block_id == 0 && thread_id == 0){ d_iters[0] = iter; d_max_iter_exit[0] = max_iter_exit; }
     
     __syncthreads();
     glass::copy<T>(state_size, s_lambda_b, &d_lambda[block_x_statesize]);
