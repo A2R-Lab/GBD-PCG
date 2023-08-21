@@ -40,7 +40,7 @@ bool checkPcgOccupancy(void* kernel, dim3 block, uint32_t state_size, uint32_t k
     int numBlocksPerSm;
     gpuErrchk(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, kernel, block.x*block.y*block.z, smem_size));
 
-    if(knot_points > numProcs*numBlocksPerSm){
+    if((int) knot_points > numProcs*numBlocksPerSm){
         printf("Too many knot points ([%d]). Device supports [%d] active blocks, over [%d] SMs.\n", knot_points, numProcs*numBlocksPerSm, numProcs);
         exit(6);
     }
@@ -48,12 +48,9 @@ bool checkPcgOccupancy(void* kernel, dim3 block, uint32_t state_size, uint32_t k
     return true;
 }
 
-
-
-
 template <typename T, uint32_t state_size, uint32_t knot_points>
 __global__
-void pcg(
+void ss_precon(
          T *d_S, 
          T *d_Pinv, 
          T *d_gamma,  				
@@ -91,8 +88,36 @@ void pcg(
             ind
         );
     }
-    grid.sync();
+}
 
+
+
+template <typename T, uint32_t state_size, uint32_t knot_points>
+__global__
+void pcg(
+         T *d_S,
+         T *d_Pinv,
+         T *d_gamma,
+         T *d_lambda,
+         T  *d_r,
+         T  *d_p,
+         T *d_v_temp,
+         T *d_eta_new_temp,
+         uint32_t *d_iters,
+         bool *d_max_iter_exit,
+         uint32_t max_iter,
+         float exit_tol)
+{
+
+    const cgrps::thread_block block = cgrps::this_thread_block();
+    const cgrps::grid_group grid = cgrps::this_grid();
+    const uint32_t block_id = blockIdx.x;
+    const uint32_t block_dim = blockDim.x;
+    const uint32_t thread_id = threadIdx.x;
+    const uint32_t block_x_statesize = block_id * state_size;
+    const uint32_t states_sq = state_size * state_size;
+
+    extern __shared__ T s_temp[];
 
     T  *s_S = s_temp;
     T  *s_Pinv = s_S +3*states_sq;
