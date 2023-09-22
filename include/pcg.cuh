@@ -81,8 +81,8 @@ void pcg(
     //
     // complete Pinv
     //
-    for(unsigned ind=GATO_BLOCK_ID; ind<knot_points; ind+=GATO_NUM_BLOCKS){
-        oldschur::gato_form_ss_inner<T>(
+    for(unsigned ind=blockIdx.x; ind<knot_points; ind+=gridDim.x){
+        gato_form_ss_inner<T>(
             state_size, knot_points,
             d_S,
             d_Pinv,
