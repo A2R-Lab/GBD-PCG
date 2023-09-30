@@ -53,7 +53,7 @@ int main(){
     gpuErrchk(cudaFree(d_gamma));
     gpuErrchk(cudaFree(d_lambda));
 
-    std::cout << "GPU-PCG returned in " << res << " iters." << std::endl;
+    std::cout << "GBD-PCG returned in " << res << " iters." << std::endl;
     std::cout << "Lambda: " << std::endl;
     for(int i = 0; i < 6; i++){
         std::cout << h_lambda[i] << " ";

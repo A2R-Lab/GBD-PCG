@@ -1,5 +1,5 @@
-# GPU-PCG
-GPU-PCG is a preconditioned conjugate gradient solver for optimal control problems. It solves linear systems of the form \Phi^{-1} * S * \lambda = \Phi^{-1} * \gamma where S is positive semidefinite and S and \Phi are square, block-tridiagonal matrices with block dimension stateSize and matrix dimension stateSize * knotPoints.
+# GBD-PCG
+GBD-PCG is a preconditioned conjugate gradient solver for optimal control problems. It solves linear systems of the form \Phi^{-1} * S * \lambda = \Phi^{-1} * \gamma where S is positive semidefinite and S and \Phi are square, block-tridiagonal matrices with block dimension stateSize and matrix dimension stateSize * knotPoints.
 
 ## Compilation
 Requires: CUDA 11.0+
