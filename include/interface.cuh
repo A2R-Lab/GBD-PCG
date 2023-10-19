@@ -30,38 +30,33 @@ uint32_t solvePCG(
     unsigned knotPoints, 
     pcg_config *config)
 {
-
+	const uint32_t states_sq = stateSize*stateSize;
     /* Create device memory d_s, d_Pinv, d_gamma, d_lambda, d_r, d_p, d_v_temp
 	d_eta_new_temp */
 	T *d_S, *d_gamma, *d_lambda;
-	gpuErrchk(cudaMalloc(&d_lambda, state_size*knot_points*sizeof(T)));
-	gpuErrchk(cudaMalloc(&d_S, 3*states_sq*knot_points*sizeof(T)));
-    gpuErrchk(cudaMalloc(&d_gamma, state_size*knot_points*sizeof(T)));
+	gpuErrchk(cudaMalloc(&d_lambda, stateSize*knotPoints*sizeof(T)));
+	gpuErrchk(cudaMalloc(&d_S, 3*states_sq*knotPoints*sizeof(T)));
+    gpuErrchk(cudaMalloc(&d_gamma, stateSize*knotPoints*sizeof(T)));
 
 
 	T *d_Pinv;
-    gpuErrchk(cudaMalloc(&d_Pinv, 3*states_sq*knot_points*sizeof(T)));
+    gpuErrchk(cudaMalloc(&d_Pinv, 3*states_sq*knotPoints*sizeof(T)));
     
     /*   PCG vars   */
     T  *d_r, *d_p, *d_v_temp, *d_eta_new_temp;
-    gpuErrchk(cudaMalloc(&d_r, state_size*knot_points*sizeof(T)));
-    gpuErrchk(cudaMalloc(&d_p, state_size*knot_points*sizeof(T)));
-    gpuErrchk(cudaMalloc(&d_v_temp, knot_points*sizeof(T)));
-    gpuErrchk(cudaMalloc(&d_eta_new_temp, knot_points*sizeof(T)));
-
-
-	/* pcgconfig*/
-	pcg_config config;
-	config->empty_pinv = 1;
+    gpuErrchk(cudaMalloc(&d_r, stateSize*knotPoints*sizeof(T)));
+    gpuErrchk(cudaMalloc(&d_p, stateSize*knotPoints*sizeof(T)));
+    gpuErrchk(cudaMalloc(&d_v_temp, knotPoints*sizeof(T)));
+    gpuErrchk(cudaMalloc(&d_eta_new_temp, knotPoints*sizeof(T)));
 
 
 	/* Copy s, gamma, lambda*/
-	gpuErrchk(cudaMemcpy(d_S, h_S, 3 * states_sq * knot_points * sizeof(T), cudaMemcpyHostToDevice));
-	gpuErrchk(cudaMemcpy(d_lambda, h_lambda, state_size * knot_points * sizeof(T), cudaMemcpyHostToDevice));
-	gpuErrchk(cudaMemcpy(d_gamma, h_gamma, state_size * knot_points * sizeof(T), cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMemcpy(d_S, h_S, 3 * states_sq * knotPoints * sizeof(T), cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMemcpy(d_lambda, h_lambda, stateSize * knotPoints * sizeof(T), cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMemcpy(d_gamma, h_gamma, stateSize * knotPoints * sizeof(T), cudaMemcpyHostToDevice));
 
 
-	solvePCG(state_size, knot_points,
+	solvePCG(stateSize, knotPoints,
                   d_S,
                   d_Pinv,
                   d_gamma,
@@ -70,13 +65,13 @@ uint32_t solvePCG(
                   d_p,
                   d_v_temp,
                   d_eta_new_temp,
-                  &config)
+                  config);
 
 
     /* Copy data back */
-	gpuErrchk(cudaMemcpy(h_S, d_S, 3 * states_sq * knot_points * sizeof(T), cudaMemcpyDeviceToHost));
-	gpuErrchk(cudaMemcpy(h_lambda, d_lambda, state_size * knot_points * sizeof(T), cudaMemcpyDeviceToHost));
-	gpuErrchk(cudaMemcpy(h_gamma, d_gamma, state_size * knot_points * sizeof(T), cudaMemcpyDeviceToHost));
+	gpuErrchk(cudaMemcpy(h_S, d_S, 3 * states_sq * knotPoints * sizeof(T), cudaMemcpyDeviceToHost));
+	gpuErrchk(cudaMemcpy(h_lambda, d_lambda, stateSize * knotPoints * sizeof(T), cudaMemcpyDeviceToHost));
+	gpuErrchk(cudaMemcpy(h_gamma, d_gamma, stateSize * knotPoints * sizeof(T), cudaMemcpyDeviceToHost));
 
 	return 1;
 }
