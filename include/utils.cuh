@@ -415,3 +415,55 @@ void store_block_bd(uint32_t b_dim, uint32_t m_dim, T *src, T *dst, unsigned col
         }
     }
 
+/*
+ STATE OF S
+        //  S:      -Q0_i in spot 00, phik left off-diagonal, thetak main diagonal, phik_T right off-diagonal
+
+ MAKE STATE OF PHI
+        //  Phi:    -Q0 in spot 00, theta_invk main diagonal
+
+*/
+ template <typename T>
+    __device__
+    void gato_ss_from_schur(uint32_t state_size, uint32_t knot_points, T *d_S, T *d_Pinv, T *s_temp, unsigned blockrow){
+
+	
+	T *s_diag = s_temp;
+	T *s_scratch = s_diag + states_sq; 
+
+	/* Load diag S*/
+	 load_block_bd<T>(
+            state_size, knot_points,
+            d_S,
+            s_diag,
+            1,
+            blockrow
+        );
+
+
+	__syncthreads();//----------------------------------------------------------------
+
+	/* Invert diag S*/
+	glass::invertMatrix<T>(
+		state_size,
+		s_diag,
+		s_scratch
+	);
+
+	__syncthreads();//----------------------------------------------------------------
+
+
+	/* Store in Pinv*/
+	store_block_bd<T>(
+                state_size, knot_points,
+                s_diag, 
+                d_Pinv,
+                1,
+                blockrow,
+                1
+        );
+
+	__syncthreads();//----------------------------------------------------------------
+
+    }
+

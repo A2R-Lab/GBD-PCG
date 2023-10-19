@@ -65,7 +65,8 @@ void pcg(
          uint32_t *d_iters, 
          bool *d_max_iter_exit,
          uint32_t max_iter, 
-         float exit_tol)
+         float exit_tol, 
+		 int empty_pinv)
 {   
 
     const cgrps::thread_block block = cgrps::this_thread_block();	 
@@ -77,6 +78,22 @@ void pcg(
     const uint32_t states_sq = state_size * state_size;
 
     extern __shared__ T s_temp[];
+    
+    // If empty pinv, Load Pinv from Schur
+
+	/* TODO: Check pinv before after for correctness*/
+	if(empty_pinv){
+		for(unsigned ind=blockIdx.x; ind<knot_points; ind+=gridDim.x){
+			gato_ss_from_schur<T>(
+				state_size, knot_points,
+				d_S,
+				d_Pinv,
+				s_temp,
+				ind
+			);
+		}
+		grid.sync();
+	}
 
     //
     // complete Pinv

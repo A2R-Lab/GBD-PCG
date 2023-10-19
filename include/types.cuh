@@ -22,9 +22,12 @@ typedef struct pcg_config{
     dim3 pcg_grid;
     dim3 pcg_block;
 
+	int empty_pinv;
+
     pcg_config(float    exit_tol = pcg_constants::DEFAULT_EPSILON, 
                uint32_t max_iter = pcg_constants::DEFAULT_MAX_PCG_ITER, 
                dim3     grid = pcg_constants::DEFAULT_GRID, 
-               dim3     block = pcg_constants::DEFAULT_BLOCK)             
-        : pcg_exit_tol(exit_tol), pcg_max_iter(max_iter), pcg_grid(grid), pcg_block(block) {}
+               dim3     block = pcg_constants::DEFAULT_BLOCK,
+			   int 		empty_pinv = 0)             
+        : pcg_exit_tol(exit_tol), pcg_max_iter(max_iter), pcg_grid(grid), pcg_block(block), empty_pinv(empty_pinv) {}
 } pcg_config;
