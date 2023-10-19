@@ -26,7 +26,6 @@ int main(){
 
 
     pcg_config config;
-	config.empty_pinv = 1;
     uint32_t res = solvePCG<float>(h_S,
 									h_gamma,
 									h_lambda,

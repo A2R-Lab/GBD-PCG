@@ -39,13 +39,11 @@ pcg_config<typename T>{
 ## API functions
 
 ```
-int pcg_solve<typename T>(cbtd_t *h_S, T *h_gamma, T *h_lambda, unsigned stateSize, unsigned knotPoints, bool warmStart = false, pcg_config *config = default_config);
+int pcg_solve<typename T>(cbtd_t *h_S, T *h_gamma, T *h_lambda, unsigned stateSize, unsigned knotPoints, pcg_config *config = default_config);
 
 ``` 
 
 h_S[I]: compressed block-tridiagonal format S
-
-h_Pinv[I]: $\Phi^{-1}$
 
 h_gamma[I]: $\gamma$
 
@@ -55,23 +53,15 @@ stateSize[I]: state size
 
 knotPoints[I]: knot points
 
-warmStart[I]: if false $\lambda$ will be initialized to [0, ... 0] else h_lambda will be used as initial guess
-config[I]: pcg parameters
+## Compilation
 
 ```
-int pcg_solve<typename T>(cbtd_t *d_S, cbtd_t *d_Pinv, T *d_gamma, T *d_lambda, unsigned stateSize, unsigned knotPoints, bool warmStart = false, pcg_config *config = default_config);
+nvcc -I../include -I../GLASS -DKNOT_POINTS=3 -DSTATE_SIZE=2 pcg_solve.cu -o pcg.exe 
 
 ```
 
-d_S: compressed block-tridiagonal format S device pointer
-
-d_Pinv: compressed block-tridiagonal format $\Phi^{-1}$ device pointer
-
-d_gamma: $\gamma$ device pointer
-
-d_lambda: $\lambda$ device pointer
-
-
+Note: In addition to passing KNOT_POINTS and STATE_SIZE in the api, you need to pass it in while compiling. This is double declaration
+will be removed in future work. It is currently required to have them as compile time constants.
 
 ## Citing
 To cite this work in your research, please use the following bibtex:

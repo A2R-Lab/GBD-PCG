@@ -30,6 +30,9 @@ uint32_t solvePCG(
     unsigned knotPoints, 
     pcg_config *config)
 {
+	if (!config->empty_pinv)
+		printf("This api can only be called with no preconditioner\n");
+
 	const uint32_t states_sq = stateSize*stateSize;
     /* Create device memory d_s, d_Pinv, d_gamma, d_lambda, d_r, d_p, d_v_temp
 	d_eta_new_temp */
