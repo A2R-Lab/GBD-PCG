@@ -28,6 +28,6 @@ typedef struct pcg_config{
                uint32_t max_iter = pcg_constants::DEFAULT_MAX_PCG_ITER, 
                dim3     grid = pcg_constants::DEFAULT_GRID, 
                dim3     block = pcg_constants::DEFAULT_BLOCK,
-			   int 		empty_pinv = 0)             
+			   int 		empty_pinv = 1)             
         : pcg_exit_tol(exit_tol), pcg_max_iter(max_iter), pcg_grid(grid), pcg_block(block), empty_pinv(empty_pinv) {}
 } pcg_config;
