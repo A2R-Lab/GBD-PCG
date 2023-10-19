@@ -90,12 +90,11 @@ uint32_t solvePCG(const uint32_t state_size,
                   T *d_eta_new_temp,
                   pcg_config *config)
 {
-
+    uint32_t *d_pcg_iters;
+    gpuErrchk(cudaMalloc(&d_pcg_iters, sizeof(uint32_t)));
+    bool *d_pcg_exit;
+    gpuErrchk(cudaMalloc(&d_pcg_exit, sizeof(bool)));
     
-    uint32_t *d_iters;
-    gpuErrchk(cudaMalloc(&d_iters, sizeof(uint32_t)));
-
-
     void *pcg_kernel = (void *) pcg<T, STATE_SIZE, KNOT_POINTS>;
 
     // checkPcgOccupancy<T>(pcg_kernel, config->pcg_block, state_size, knot_points);
@@ -108,24 +107,26 @@ uint32_t solvePCG(const uint32_t state_size,
         (void *)&d_p,
         (void *)&d_v_temp,
         (void *)&d_eta_new_temp,
-        (void *)&d_iters,
+        (void *)&d_pcg_iters,
+        (void *)&d_pcg_exit,
         (void *)&config->pcg_max_iter,
         (void *)&config->pcg_exit_tol,
 		(void *)&config->empty_pinv
     };
-    uint32_t h_iters;
+    uint32_t h_pcg_iters;
 
     size_t ppcg_kernel_smem_size = pcgSharedMemSize<T>(state_size, knot_points);
 
-
-    gpuErrchk(cudaLaunchCooperativeKernel(pcg_kernel, knot_points, PCG_NUM_THREADS, kernelArgs, ppcg_kernel_smem_size));    
+    gpuErrchk(cudaLaunchCooperativeKernel(pcg_kernel, knot_points, pcg_constants::DEFAULT_BLOCK, kernelArgs, ppcg_kernel_smem_size));    
     gpuErrchk(cudaPeekAtLastError());
 
-    gpuErrchk(cudaMemcpy(&h_iters, d_iters, sizeof(uint32_t), cudaMemcpyDeviceToHost));
+
+    gpuErrchk(cudaMemcpy(&h_pcg_iters, d_pcg_iters, sizeof(uint32_t), cudaMemcpyDeviceToHost));
 
 
 
-    gpuErrchk(cudaFree(d_iters));
+    gpuErrchk(cudaFree(d_pcg_iters));
+	gpuErrchk(cudaFree(d_pcg_exit));
 
-    return h_iters;
+    return h_pcg_iters;
 }

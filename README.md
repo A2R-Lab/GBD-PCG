@@ -10,14 +10,9 @@ where,
 - Block dimension stateSize
 - Matrix dimension stateSize * knotPoints.
 
-## Compilation
+## Requirements
 Requires: CUDA 11.0+
 
-compile library:
-
-compile examples:
-
-### Compilation Flags
 
 ## Datatypes
 
@@ -78,7 +73,7 @@ d_lambda: $\lambda$ device pointer
 
 
 
-### Citing
+## Citing
 To cite this work in your research, please use the following bibtex:
 ```
 @misc{adabag2023mpcgpu,

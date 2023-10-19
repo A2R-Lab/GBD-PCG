@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <cooperative_groups.h>
 #include "types.cuh"
+#include "glass.cuh"
 
 namespace cgrps = cooperative_groups;
 
