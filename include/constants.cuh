@@ -2,14 +2,11 @@
 #include <cstdint>
 #include <cuda_runtime.h>
 
-
-#ifndef STATE_SIZE
-#define STATE_SIZE  1
-#endif
-
-#ifndef KNOT_POINTS
-#define KNOT_POINTS  2
-#endif
+#define NUM_THREADS 64
+#define KNOT_POINTS 1
+#define NX 3
+#define NC 5
+#define STATE_SIZE NX/KNOT_POINTS
 
 namespace pcg_constants{
     uint32_t DEFAULT_MAX_PCG_ITER = 25;

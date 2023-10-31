@@ -103,7 +103,6 @@ void pcg(
             state_size, knot_points,
             d_S,
             d_Pinv,
-            d_gamma,
             s_temp,
             ind
         );
