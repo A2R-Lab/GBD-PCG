@@ -3,9 +3,9 @@
 #include <cuda_runtime.h>
 
 #define NUM_THREADS 64
-#define KNOT_POINTS 1
-#define NX 3
-#define NC 5
+#define KNOT_POINTS 3
+#define NX 9
+#define NC 9
 #define STATE_SIZE NX/KNOT_POINTS
 
 namespace pcg_constants{
