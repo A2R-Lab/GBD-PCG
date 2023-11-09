@@ -76,6 +76,15 @@ uint32_t solvePCG(
 	gpuErrchk(cudaMemcpy(h_lambda, d_lambda, stateSize * knotPoints * sizeof(T), cudaMemcpyDeviceToHost));
 	gpuErrchk(cudaMemcpy(h_gamma, d_gamma, stateSize * knotPoints * sizeof(T), cudaMemcpyDeviceToHost));
 
+	cudaFree(d_lambda);
+	cudaFree(d_S);
+	cudaFree(d_gamma);
+	cudaFree(d_Pinv);
+	cudaFree(d_r);
+	cudaFree(d_p);
+	cudaFree(d_v_temp);
+	cudaFree(d_eta_new_temp);
+
 	return 1;
 }
 
