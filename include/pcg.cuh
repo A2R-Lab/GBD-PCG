@@ -196,6 +196,10 @@ void pcg(
 			grid.sync(); //-------------------------------------
 			glass::reduce<T, knot_points>(s_v_b, d_v_temp);
 			__syncthreads();
+
+			// HERE
+			if(s_v_b[0] == 0)
+				break;
 			alpha = eta / s_v_b[0];
 			// lambda = lambda + alpha * p
 			// r = r - alpha * upsilon
@@ -226,6 +230,11 @@ void pcg(
 
 			// beta = eta_new / eta
 			// eta = eta_new
+
+			// HERE
+
+			if(eta == 0)
+				break;
 			beta = eta_new / eta;
 			eta = eta_new;
 
