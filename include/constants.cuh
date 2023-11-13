@@ -3,11 +3,11 @@
 #include <cuda_runtime.h>
 
 #ifndef STATE_SIZE
-#define STATE_SIZE  1
+#define STATE_SIZE  3
 #endif
 
 #ifndef KNOT_POINTS
-#define KNOT_POINTS  2
+#define KNOT_POINTS  3
 #endif
 
 namespace pcg_constants{
