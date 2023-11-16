@@ -13,7 +13,7 @@ uint32_t solvePCG(
     T *h_lambda, 
     unsigned stateSize, 
     unsigned knotPoints, 
-    pcg_config *config)
+    struct pcg_config<T> *config)
 {
     std::cout << "NOT IMPLEMENTED" << std::endl;
     exit(12);
@@ -28,7 +28,7 @@ uint32_t solvePCG(
     T *h_lambda, 
     unsigned stateSize, 
     unsigned knotPoints, 
-    pcg_config *config)
+    struct pcg_config<T> *config)
 {
 	if (!config->empty_pinv)
 		printf("This api can only be called with no preconditioner\n");
@@ -100,7 +100,7 @@ uint32_t solvePCG(const uint32_t state_size,
                   T *d_p,
                   T *d_v_temp,
                   T *d_eta_new_temp,
-                  pcg_config *config)
+                  struct pcg_config<T> *config)
 {
     uint32_t *d_pcg_iters;
     gpuErrchk(cudaMalloc(&d_pcg_iters, sizeof(uint32_t)));

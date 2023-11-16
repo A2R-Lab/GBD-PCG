@@ -65,7 +65,7 @@ void pcg(
          uint32_t *d_iters, 
          bool *d_max_iter_exit,
          uint32_t max_iter, 
-         float exit_tol, 
+         T exit_tol, 
 		 int empty_pinv)
 {   
 
