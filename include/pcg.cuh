@@ -171,7 +171,7 @@ void pcg(
 
 
     // eta = r * r_tilde
-    glass::dot<T, state_size>(s_eta_new_b, s_r_b, s_r_tilde);
+    glass::dot<T>(s_eta_new_b, state_size, s_r_b, s_r_tilde);
     if(thread_id == 0){ d_eta_new_temp[block_id] = s_eta_new_b[0]; }
     grid.sync(); //-------------------------------------
     glass::reduce<T, knot_points>(s_eta_new_b, d_eta_new_temp);
@@ -190,7 +190,7 @@ void pcg(
 			__syncthreads();
 
 			// alpha = eta / p * upsilon
-			glass::dot<T, state_size>(s_v_b, s_p_b, s_upsilon);
+			glass::dot<T>(s_v_b, state_size, s_p_b, s_upsilon);
 			__syncthreads();
 			if(thread_id == 0){ d_v_temp[block_id] = s_v_b[0]; }
 			grid.sync(); //-------------------------------------
@@ -218,7 +218,7 @@ void pcg(
 			__syncthreads();
 
 			// eta = r * r_tilde
-			glass::dot<T, state_size>(s_eta_new_b, s_r_b, s_r_tilde);
+			glass::dot<T>(s_eta_new_b, state_size, s_r_b, s_r_tilde);
 			__syncthreads();
 			if(thread_id == 0){ d_eta_new_temp[block_id] = s_eta_new_b[0]; }
 			grid.sync(); //-------------------------------------
