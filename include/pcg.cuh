@@ -174,7 +174,7 @@ void pcg(
     glass::dot<T>(s_eta_new_b, state_size, s_r_b, s_r_tilde);
     if(thread_id == 0){ d_eta_new_temp[block_id] = s_eta_new_b[0]; }
     grid.sync(); //-------------------------------------
-    glass::reduce<T, knot_points>(s_eta_new_b, d_eta_new_temp);
+    glass::reduce<T>(s_eta_new_b, knot_points, d_eta_new_temp);
     __syncthreads();
     eta = s_eta_new_b[0];
     
@@ -194,7 +194,7 @@ void pcg(
 			__syncthreads();
 			if(thread_id == 0){ d_v_temp[block_id] = s_v_b[0]; }
 			grid.sync(); //-------------------------------------
-			glass::reduce<T, knot_points>(s_v_b, d_v_temp);
+			glass::reduce<T>(s_v_b, knot_points, d_v_temp);
 			__syncthreads();
 
 			// HERE
@@ -222,7 +222,7 @@ void pcg(
 			__syncthreads();
 			if(thread_id == 0){ d_eta_new_temp[block_id] = s_eta_new_b[0]; }
 			grid.sync(); //-------------------------------------
-			glass::reduce<T, knot_points>(s_eta_new_b, d_eta_new_temp);
+			glass::reduce<T>(s_eta_new_b, knot_points, d_eta_new_temp);
 			__syncthreads();
 			eta_new = s_eta_new_b[0];
 
