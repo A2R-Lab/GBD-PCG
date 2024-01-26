@@ -12,31 +12,33 @@ void loadbdVec(T *s_var,
                const uint32_t block_id,
                T *d_var_b)
 {
+    glass::copy<T>(3*block_dim, &d_var_b[-1 * (int) block_dim], s_var);
 
-    // Need to load b also now
-    for (unsigned ind = threadIdx.x; ind < block_dim; ind += blockDim.x){
-        s_var[ind + block_dim] = *(d_var_b + ind); 
-    }
+    // // Need to load b also now
+    // for (unsigned ind = threadIdx.x; ind < block_dim; ind += blockDim.x){
+    //     s_var[ind + block_dim] = *(d_var_b + ind); 
+    // }
     
-    if(block_id == 0){
-        for (unsigned ind = threadIdx.x; ind < block_dim; ind += blockDim.x){
-            s_var[ind + 2*block_dim] = *(d_var_b + block_dim + ind); 
-        }
-    }
-    else if (block_id == max_block_id){
-        for (unsigned ind = threadIdx.x; ind < block_dim; ind += blockDim.x){
-            s_var[ind] = *(d_var_b - block_dim + ind);
-        }
-    }
-    else{
-        T *dst, *src;
-        for (unsigned ind = threadIdx.x; ind < 2*block_dim; ind += blockDim.x){
-            dst = s_var + ind + (ind >= block_dim) * block_dim;
-            src = d_var_b + ind - (ind < block_dim) * block_dim;
-            *dst = *src;
-        }
-    }
-
+    // if(block_id == 0){
+    //     for (unsigned ind = threadIdx.x; ind < block_dim; ind += blockDim.x){
+    //         s_var[ind] = static_cast<T>(0);
+    //         s_var[ind + 2*block_dim] = *(d_var_b + block_dim + ind); 
+    //     }
+    // }
+    // else if (block_id == max_block_id){
+    //     for (unsigned ind = threadIdx.x; ind < block_dim; ind += blockDim.x){
+    //         s_var[ind] = *(d_var_b - block_dim + ind);
+    //         s_var[ind + 2*block_dim] = static_cast<T>(0);
+    //     }
+    // }
+    // else{
+    //     T *dst, *src;
+    //     for (unsigned ind = threadIdx.x; ind < 2*block_dim; ind += blockDim.x){
+    //         dst = s_var + ind + (ind >= block_dim) * block_dim;
+    //         src = d_var_b + ind - (ind < block_dim) * block_dim;
+    //         *dst = *src;
+    //     }
+    // }
 }
 
 
@@ -52,36 +54,52 @@ void bdmv(T *s_dst,
           uint32_t max_block_id, 
           uint32_t block_id)
 {
-    
-    T val;
 
-    if(block_id == 0){
-        for (unsigned r = threadIdx.x; r < b_dim; r += blockDim.x){
-            val = static_cast<T>(0);
-            for(unsigned c = 0; c < 2*b_dim; c++){
-                val += s_mat[b_dim*b_dim + b_dim * c + r] * s_vec[c + b_dim]; // var and var+1
-            }
-            s_dst[r] = val;
-        }
-    }
-    else if (block_id == max_block_id){
-        for (unsigned r = threadIdx.x; r < b_dim; r += blockDim.x){
-            val = static_cast<T>(0);
-            for(unsigned c = 0; c < 2*b_dim; c++){
-                val += s_mat[b_dim * c + r] * s_vec[c];
-            }
-            s_dst[r] = val;
-        }
-    }
-    else{
-        for (unsigned r = threadIdx.x; r < b_dim; r += blockDim.x){
-            val = static_cast<T>(0);
-            for(unsigned c = 0; c < 3*b_dim; c++){
-                val += s_mat[b_dim * c + r] * s_vec[c];
-            }
-            s_dst[r] = val;
-        }
-    }
+    // if(block_id == 0){
+    //     glass::gemv<T, false>(b_dim, 2*b_dim, static_cast<T>(1.0), &s_mat[b_dim*b_dim], &s_vec[b_dim], s_dst);
+    // }
+    // else if(block_id == max_block_id){
+    //     glass::gemv<T, false>(b_dim, 2*b_dim, static_cast<T>(1.0), s_mat, s_vec, s_dst);
+    // }
+    // else{
+    //     glass::gemv<T, false>(b_dim, 3*b_dim, static_cast<T>(1.0), s_mat, s_vec, s_dst);
+    // }
+    glass::gemv<T, false>(b_dim, 3*b_dim, static_cast<T>(1.0), s_mat, s_vec, s_dst);
+    
+    // T val;
+
+    // if(block_id == 0){
+    //     for (unsigned r = threadIdx.x; r < b_dim; r += blockDim.x){
+    //         val = static_cast<T>(0);
+    //         for(unsigned c = 0; c < 2*b_dim; c++){
+    //             T one =s_mat[b_dim*b_dim + b_dim * c + r]; 
+    //             // if(block_id==0){
+    //             //    printf("c: %d, b_dim: %d, one: %p\n", c, b_dim, &(s_vec[0]));
+    //             // }
+    //             T two = s_vec[c + b_dim];
+    //             val += one * two; // var and var+1
+    //         }
+    //         s_dst[r] = val;
+    //     }
+    // }
+    // else if (block_id == max_block_id){
+    //     for (unsigned r = threadIdx.x; r < b_dim; r += blockDim.x){
+    //         val = static_cast<T>(0);
+    //         for(unsigned c = 0; c < 2*b_dim; c++){
+    //             val += s_mat[b_dim * c + r] * s_vec[c];
+    //         }
+    //         s_dst[r] = val;
+    //     }
+    // }
+    // else{
+    //     for (unsigned r = threadIdx.x; r < b_dim; r += blockDim.x){
+    //         val = static_cast<T>(0);
+    //         for(unsigned c = 0; c < 3*b_dim; c++){
+    //             val += s_mat[b_dim * c + r] * s_vec[c];
+    //         }
+    //         s_dst[r] = val;
+    //     }
+    // }
 }
 
 template <typename T>
@@ -160,6 +178,19 @@ void store_block_bd(uint32_t b_dim, uint32_t m_dim, T *src, T *dst, unsigned col
     }
 }
 
+template <typename T>
+__device__
+T *get_block_bd_address(uint32_t b_dim, uint32_t m_dim, T *src, unsigned col, unsigned BLOCKNO)
+{
+    unsigned block_row_offset, block_col_offset;
+
+
+    block_row_offset = BLOCKNO * (3 * b_dim * b_dim);
+    block_col_offset = col*b_dim*b_dim;
+
+    return &src[block_row_offset + block_col_offset];
+}
+
 
     ///TODO: this could be more better
     template <typename T>
@@ -212,167 +243,91 @@ void store_block_bd(uint32_t b_dim, uint32_t m_dim, T *src, T *dst, unsigned col
         }
     }
 
-    template <typename T>
-    __device__
-    void gato_form_ss_inner(uint32_t state_size, uint32_t knot_points, T *d_S, T *d_Pinv, T *s_temp, unsigned blockrow){
+template <typename T>
+__device__
+void gato_form_ss_inner(uint32_t state_size, uint32_t knot_points, T *d_S, T *d_Pinv, T *s_temp, unsigned blockrow){
 
-        const uint32_t states_sq = state_size*state_size;
-        
-        //  STATE OF DEVICE MEM
-        //  S:      -Q0_i in spot 00, phik left off-diagonal, thetak main diagonal, phik_T right off-diagonal
-        //  Phi:    -Q0 in spot 00, theta_invk main diagonal
-        //  gamma:  -Q0_i*q0 spot 0, gammak
+    const uint32_t states_sq = state_size*state_size;
+    
+    //  STATE OF DEVICE MEM
+    //  S:      -Q0_i in spot 00, phik left off-diagonal, thetak main diagonal, phik_T right off-diagonal
+    //  Phi:    -Q0 in spot 00, theta_invk main diagonal
+    //  gamma:  -Q0_i*q0 spot 0, gammak
 
+    T *s_end = s_temp + states_sq;
 
-        // GOAL SPACE ALLOCATION IN SHARED MEM
-        // s_temp  = | phi_k_T | phi_k | phi_kp1 | thetaInv_k | thetaInv_kp1 | thetaInv_km1 | PhiInv_R | PhiInv_L | scratch
-        T *s_phi_k = s_temp;
-        T *s_phi_kp1_T = s_phi_k + states_sq;
-        T *s_thetaInv_k = s_phi_kp1_T + states_sq;
-        T *s_thetaInv_km1 = s_thetaInv_k + states_sq;
-        T *s_thetaInv_kp1 = s_thetaInv_km1 + states_sq;
-        T *s_PhiInv_k_R = s_thetaInv_kp1 + states_sq;
-        T *s_PhiInv_k_L = s_PhiInv_k_R + states_sq;
-        T *s_scratch = s_PhiInv_k_L + states_sq;
+    T *d_Phi_right_diag = get_block_bd_address<T>(state_size, knot_points, d_Pinv, 2, blockrow);
+    T *d_Phi_left_diag = get_block_bd_address<T>(state_size, knot_points, d_Pinv, 0, blockrow);
+    T *d_thetaInv_k = get_block_bd_address<T>(state_size, knot_points, d_Pinv, 1, blockrow);
 
-        const unsigned lastrow = knot_points - 1;
-
-        // load phi_kp1_T
-        if(blockrow!=lastrow){
-            load_block_bd<T>(
-                state_size, knot_points,
-                d_S,                // src
-                s_phi_kp1_T,        // dst
-                0,                  // block column (0, 1, or 2)
-                blockrow+1,          // block row
-                true                // transpose
-            );
-        }
-        
-
-        // load phi_k
-        if(blockrow!=0){
-            load_block_bd<T>(
-                state_size,
-                knot_points,
-                d_S,
-                s_phi_k,
-                0,
-                blockrow
-            );
-        }
-        
+    // // load thetaInv_k
+    // load_block_bd<T>(
+    //     state_size, knot_points,
+    //     d_Pinv,
+    //     s_thetaInv_k,
+    //     1,
+    //     blockrow
+    // );
+    // __syncthreads();//----------------------------------------------------------------
 
 
-        // load thetaInv_k
-        load_block_bd<T>(
-            state_size, knot_points,
-            d_Pinv,
-            s_thetaInv_k,
-            1,
-            blockrow
+    if(blockrow!=0){
+
+        T *d_phi_k = get_block_bd_address<T>(state_size, knot_points, d_S, 0, blockrow);
+        T *d_thetaInv_km1 = get_block_bd_address<T>(state_size, knot_points, d_Pinv, 1, blockrow-1);
+
+        // compute left off diag    
+        glass::gemm<T, false>(
+            state_size,
+            state_size,
+            state_size,
+            static_cast<T>(1.0),
+            d_thetaInv_k,
+            d_phi_k,
+            s_temp
         );
-
-
-        // load thetaInv_km1
-        if(blockrow!=0){
-            load_block_bd<T>(
-                state_size, knot_points,
-                d_Pinv,
-                s_thetaInv_km1,
-                1,
-                blockrow-1
-            );
-        }
-
-
-        // load thetaInv_kp1
-        if(blockrow!=lastrow){
-            load_block_bd<T>(
-                state_size, knot_points,
-                d_Pinv,
-                s_thetaInv_kp1,
-                1,
-                blockrow+1
-            );
-        }
+        __syncthreads();//----------------------------------------------------------------
         
+        glass::gemm<T, false>(
+            state_size,
+            state_size,
+            state_size,
+            static_cast<T>(-1.0),
+            s_temp,
+            d_thetaInv_km1,
+            d_Phi_left_diag
+        );
+    }
+    __syncthreads();//----------------------------------------------------------------
 
+
+    if(blockrow!=(knot_points - 1)){
+
+        T *d_phi_kp1 = get_block_bd_address<T>(state_size, knot_points, d_S, 0, blockrow+1);
+        T *d_thetaInv_kp1 = get_block_bd_address<T>(state_size, knot_points, d_Pinv, 1, blockrow+1);
+
+        glass::gemm<T, true>(
+            state_size,
+            state_size,
+            state_size,
+            static_cast<T>(1.0),
+            d_thetaInv_k,
+            d_phi_kp1,
+            s_temp
+        );
         __syncthreads();//----------------------------------------------------------------
 
-        if(blockrow!=0){
-
-            // compute left off diag    
-            mat_mat_prod<T>(
-                s_scratch,
-                s_thetaInv_k,
-                s_phi_k,
-                state_size,
-                state_size,
-                state_size,
-                state_size                           
-            );
-            __syncthreads();//----------------------------------------------------------------
-            mat_mat_prod<T>(
-                s_PhiInv_k_L,
-                s_scratch,
-                s_thetaInv_km1,
-                state_size,
-                state_size,
-                state_size,
-                state_size
-            );
-            __syncthreads();//----------------------------------------------------------------
-
-            // store left diagonal in Phi
-            store_block_bd<T>(
-                state_size, knot_points,
-                s_PhiInv_k_L, 
-                d_Pinv,
-                0,
-                blockrow,
-                -1
-            );
-            __syncthreads();//----------------------------------------------------------------
-        }
-
-
-        if(blockrow!=lastrow){
-
-            // calculate Phi right diag
-            mat_mat_prod<T>(
-                s_scratch,
-                s_thetaInv_k,
-                s_phi_kp1_T,
-                state_size,                           
-                state_size,                           
-                state_size,                           
-                state_size                           
-            );
-            __syncthreads();//----------------------------------------------------------------
-            mat_mat_prod<T>(
-                s_PhiInv_k_R,
-                s_scratch,
-                s_thetaInv_kp1,
-                state_size,
-                state_size,
-                state_size,
-                state_size
-            );
-            __syncthreads();//----------------------------------------------------------------
-
-            // store Phi right diag
-            store_block_bd<T>(
-                state_size, knot_points,
-                s_PhiInv_k_R, 
-                d_Pinv,
-                2,
-                blockrow,
-                -1
-            );
-
-        }
+        glass::gemm<T, false>(
+            state_size,
+            state_size,
+            state_size,
+            static_cast<T>(-1.0),
+            s_temp,
+            d_thetaInv_kp1,
+            d_Phi_right_diag
+        );
     }
+}
 
 template <typename T>
     __device__ __forceinline__
