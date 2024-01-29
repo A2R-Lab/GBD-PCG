@@ -50,6 +50,10 @@ size_t pcgSharedMemSize(uint32_t state_size, uint32_t knot_points){
                         2*max(state_size, knot_points));
 }
 
+template <typename T>
+__device__
+void element_wise_vector_mult(uint32_t, T *, T *, T *);
+
 
 template <typename T>
 bool checkPcgOccupancy(void* kernel, dim3 block, uint32_t state_size, uint32_t knot_points){
@@ -295,13 +299,13 @@ void pcg(
 
 
 
-
 template <typename T, uint32_t state_size, uint32_t knot_points>
 __global__
 void pcg_dynamic_mem(
+        T * d_gamma, T * d_g, T * d_A, T* d_admm_lambda, T*d_z, T *d_rho_mat, T sigma, T* d_l, T* d_u,
          pcg_problem<T> problem
 )
-{   
+{       
     const pcg_problem<T> *prob = &problem;
     const cgrps::grid_group grid = cgrps::this_grid();
     const uint32_t block_id = blockIdx.x;
@@ -313,6 +317,34 @@ void pcg_dynamic_mem(
     const T exit_tol = problem.config.pcg_exit_tol;
 
     extern __shared__ T s_temp[];
+
+    
+    // compute gamma
+    if(block_id == 0){
+
+        T *s_zdiff = s_temp;
+        T *s_Atz = s_zdiff + NC;
+        /* z_diff = d_rho_mat * d_z */
+        element_wise_vector_mult<T>(NC, s_zdiff, d_rho_mat, d_z);
+
+        /* z_diff = z_diff - lambda */
+        glass::axpby<T>(NC, static_cast<T>(1.0), s_zdiff, -1, d_admm_lambda, s_zdiff);
+        __syncthreads();
+
+        /* Atx = A.T * z_diff */
+        glass::gemv<T, true>(NX, NC, static_cast<T>(1.0), d_A, s_zdiff, s_Atz);
+        __syncthreads();
+
+        /* gamma = -g + sigma * x */
+        glass::axpby<T>(NX, -1, d_g, sigma, prob->d_x, d_gamma);
+        __syncthreads();
+
+        /* gamma = Atz + gamma */
+        glass::axpy<T>(NX, 1, s_Atz, d_gamma);
+    }
+    grid.sync();
+
+
     
     T *S_b, *Pinv_b, *gamma_b, 
       *lambda_bm1, *r_tilde_b, *upsilon_b,
@@ -320,9 +352,48 @@ void pcg_dynamic_mem(
       *r_b, *p_b, *lambda_b;
     T *s_end = s_temp;
 
+    // v
+    if(prob->d_v.copy_into_smem){
+        v_b = s_end;
+        s_end = v_b + max(knot_points, state_size);
+    }
+    else{
+        v_b = prob->d_v.ptr + block_id * max(knot_points, state_size);
+    }
+
+    // eta_new
+    if(prob->d_eta_new.copy_into_smem){
+        eta_new_b = s_end;
+        s_end = eta_new_b + max(knot_points, state_size);
+    }
+    else{
+        eta_new_b = prob->d_eta_new.ptr + block_id * max(knot_points, state_size);
+    }
+
+    // p
+    if(prob->d_p_buffer.copy_into_smem){
+        p_bm1 = s_end;
+        s_end = p_bm1 + 3*state_size;
+        p_b = p_bm1 + state_size;
+    }
+    else{
+        p_bm1 = prob->d_p_buffer.ptr + block_x_statesize;
+        p_b = p_bm1 + state_size;
+    }
+
+
+    // r_tilde
+    if(prob->d_r_tilde.copy_into_smem){
+        r_tilde_b = s_end;
+        s_end = r_tilde_b + state_size;
+    }
+    else{
+        r_tilde_b = prob->d_r_tilde.ptr + block_x_statesize;
+    }
+
     // S
     if(prob->d_S.copy_into_smem){
-        S_b = s_temp;
+        S_b = s_end;
         s_end = S_b +3*states_sq;
         glass::copy<T>(3*states_sq, &(prob->d_S.ptr[block_id*states_sq*3]), S_b);
     }
@@ -351,15 +422,6 @@ void pcg_dynamic_mem(
         lambda_bm1 = prob->d_lambda_buffer.ptr + block_x_statesize;
         lambda_b = lambda_bm1 + state_size;
     }
-
-    // r_tilde
-    if(prob->d_r_tilde.copy_into_smem){
-        r_tilde_b = s_end;
-        s_end = r_tilde_b + state_size;
-    }
-    else{
-        r_tilde_b = prob->d_r_tilde.ptr + block_x_statesize;
-    }
     
     // r
     if(prob->d_r_buffer.copy_into_smem){
@@ -372,16 +434,6 @@ void pcg_dynamic_mem(
         r_b = r_bm1 + state_size;
     }
 
-    // p
-    if(prob->d_p_buffer.copy_into_smem){
-        p_bm1 = s_end;
-        s_end = p_bm1 + 3*state_size;
-        p_b = p_bm1 + state_size;
-    }
-    else{
-        p_bm1 = prob->d_p_buffer.ptr + block_x_statesize;
-        p_b = p_bm1 + state_size;
-    }
 
     // upsilon
     if(prob->d_upsilon.copy_into_smem){
@@ -390,24 +442,6 @@ void pcg_dynamic_mem(
     }
     else{
         upsilon_b = prob->d_upsilon.ptr + block_x_statesize;
-    }
-
-    // v
-    if(prob->d_v.copy_into_smem){
-        v_b = s_end;
-        s_end = v_b + max(knot_points, state_size);
-    }
-    else{
-        v_b = prob->d_v.ptr + block_id * max(knot_points, state_size);
-    }
-
-    // eta_new
-    if(prob->d_eta_new.copy_into_smem){
-        eta_new_b = s_end;
-        s_end = eta_new_b + max(knot_points, state_size);
-    }
-    else{
-        eta_new_b = prob->d_eta_new.ptr + block_id * max(knot_points, state_size);
     }
 
     // gamma
@@ -550,5 +584,35 @@ void pcg_dynamic_mem(
     if(prob->d_lambda_buffer.copy_into_smem){
         __syncthreads();
         glass::copy<T>(state_size, lambda_b, &(prob->d_lambda_buffer.ptr[state_size + block_x_statesize]));
+    }
+
+
+    // update z and lambda
+    grid.sync();
+
+    if(block_id == 0){
+        T *s_Ax = s_temp;
+        T *s_Axz = s_Ax + NC;
+
+        /* Ax = A * x */
+        glass::gemv<T, false>(NC, NX, 1, d_A, prob->d_x, s_Ax);
+
+        /* z = Ax + 1/rho * lambda */
+        for(int i=blockIdx.x*blockDim.x + threadIdx.x; i < NC; i += blockDim.x)
+        {
+            d_z[i] = s_Ax[i] + d_admm_lambda[i] / d_rho_mat[i];
+        }
+
+        /* z = clip(z) */
+        glass::clip(NC, d_z, d_l, d_u);
+
+        /* Axz = Ax - z*/
+        glass::axpby<T>(NC, 1, s_Ax, -1, d_z, s_Axz);
+
+        /* Axz = Axz * rho element-wise */
+        element_wise_vector_mult(NC, s_Axz, d_rho_mat, s_Axz);
+
+        /* lambda = lambda + Axz */
+        glass::axpy<T>(NC, static_cast<T>(1.0), s_Axz, d_admm_lambda);
     }
 }
