@@ -294,7 +294,19 @@ void pcg(
 
 
 
-
+template <typename T>
+__device__ __forceinline__
+T clip(T x, T u, T l){
+    if(x < l){
+        return l;
+    }
+    else if(x > u){
+        return u;
+    }
+    else{
+        return x;
+    }
+}
 
 
 
@@ -325,22 +337,20 @@ void pcg_dynamic_mem(
         T *s_zdiff = s_temp;
         T *s_Atz = s_zdiff + NC;
         /* z_diff = d_rho_mat * d_z */
-        element_wise_vector_mult<T>(NC, s_zdiff, d_rho_mat, d_z);
-
         /* z_diff = z_diff - lambda */
-        glass::axpby<T>(NC, static_cast<T>(1.0), s_zdiff, -1, d_admm_lambda, s_zdiff);
-        __syncthreads();
-
         /* Atx = A.T * z_diff */
-        glass::gemv<T, true>(NX, NC, static_cast<T>(1.0), d_A, s_zdiff, s_Atz);
-        __syncthreads();
-
         /* gamma = -g + sigma * x */
-        glass::axpby<T>(NX, -1, d_g, sigma, prob->d_x, d_gamma);
-        __syncthreads();
-
         /* gamma = Atz + gamma */
-        glass::axpy<T>(NX, 1, s_Atz, d_gamma);
+
+        // TODO: totally could have messed up NC/NX here
+        for(int i = threadIdx.x; i < NC; i += blockDim.x){
+            s_zdiff[i] = (d_z[i] * d_rho_mat[i]) - d_admm_lambda[i];
+            s_Atz[i] = 0;
+            for(int j = 0; j < NX; j++){
+                s_Atz[i] += d_A[i*NC + j] * s_zdiff[j];
+            }
+            d_gamma[i] = s_Atz[i] + (- d_g[i] + sigma * prob->d_x[i]);
+        }
     }
     grid.sync();
 
@@ -351,6 +361,15 @@ void pcg_dynamic_mem(
       *v_b, *eta_new_b, *r_bm1, *p_bm1, 
       *r_b, *p_b, *lambda_b;
     T *s_end = s_temp;
+    // S
+    if(prob->d_S.copy_into_smem){
+        S_b = s_end;
+        s_end = S_b +3*states_sq;
+        glass::copy<T>(3*states_sq, &(prob->d_S.ptr[block_id*states_sq*3]), S_b);
+    }
+    else{
+        S_b = prob->d_S.ptr + block_id*states_sq*3;
+    }
 
     // v
     if(prob->d_v.copy_into_smem){
@@ -391,25 +410,6 @@ void pcg_dynamic_mem(
         r_tilde_b = prob->d_r_tilde.ptr + block_x_statesize;
     }
 
-    // S
-    if(prob->d_S.copy_into_smem){
-        S_b = s_end;
-        s_end = S_b +3*states_sq;
-        glass::copy<T>(3*states_sq, &(prob->d_S.ptr[block_id*states_sq*3]), S_b);
-    }
-    else{
-        S_b = prob->d_S.ptr + block_id*states_sq*3;
-    }
-
-    // Pinv
-    if(prob->d_Pinv.copy_into_smem){
-        Pinv_b = s_end;
-        s_end = Pinv_b + 3*states_sq;
-        glass::copy<T>(3*states_sq, &(prob->d_Pinv.ptr[block_id*states_sq*3]), Pinv_b);
-    }
-    else{
-        Pinv_b = prob->d_Pinv.ptr + block_id*states_sq*3;
-    }
 
     // lambda
     if(prob->d_lambda_buffer.copy_into_smem){
@@ -454,8 +454,17 @@ void pcg_dynamic_mem(
         gamma_b = prob->d_gamma.ptr + block_x_statesize;
     }
 
+    // Pinv
+    if(prob->d_Pinv.copy_into_smem){
+        Pinv_b = s_end;
+        s_end = Pinv_b + 3*states_sq;
+        glass::copy<T>(3*states_sq, &(prob->d_Pinv.ptr[block_id*states_sq*3]), Pinv_b);
+    }
+    else{
+        Pinv_b = prob->d_Pinv.ptr + block_id*states_sq*3;
+    }
 
-    uint32_t iter;
+    uint32_t iter = 0;
     T alpha, beta, eta, eta_new;
 
     bool max_iter_exit = true;
@@ -595,24 +604,22 @@ void pcg_dynamic_mem(
         T *s_Axz = s_Ax + NC;
 
         /* Ax = A * x */
-        glass::gemv<T, false>(NC, NX, 1, d_A, prob->d_x, s_Ax);
-
         /* z = Ax + 1/rho * lambda */
-        for(int i=blockIdx.x*blockDim.x + threadIdx.x; i < NC; i += blockDim.x)
-        {
-            d_z[i] = s_Ax[i] + d_admm_lambda[i] / d_rho_mat[i];
-        }
-
         /* z = clip(z) */
-        glass::clip(NC, d_z, d_l, d_u);
-
         /* Axz = Ax - z*/
-        glass::axpby<T>(NC, 1, s_Ax, -1, d_z, s_Axz);
-
         /* Axz = Axz * rho element-wise */
-        element_wise_vector_mult(NC, s_Axz, d_rho_mat, s_Axz);
-
         /* lambda = lambda + Axz */
-        glass::axpy<T>(NC, static_cast<T>(1.0), s_Axz, d_admm_lambda);
+
+        for(int i = threadIdx.x; i < NC; i += blockDim.x){
+            s_Ax[i] = 0;
+            for(int j = 0; j < NX; j++){
+                s_Ax[i] += d_A[j*NC + i] * prob->d_x[j];
+            }
+
+            d_z[i] = clip(s_Ax[i] + d_admm_lambda[i] / d_rho_mat[i], d_u[i], d_l[i]);
+            s_Axz[i] = (s_Ax[i] - d_z[i]) * d_rho_mat[i];
+            d_admm_lambda[i] += s_Axz[i];
+
+        }
     }
 }
