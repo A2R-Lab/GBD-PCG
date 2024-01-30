@@ -332,28 +332,26 @@ void pcg_dynamic_mem(
 
     
     // compute gamma
-    if(block_id == 0){
 
-        T *s_zdiff = s_temp;
-        T *s_Atz = s_zdiff + NC;
-        /* z_diff = d_rho_mat * d_z */
-        /* z_diff = z_diff - lambda */
-        /* Atx = A.T * z_diff */
-        /* gamma = -g + sigma * x */
-        /* gamma = Atz + gamma */
+    T *s_zdiff = s_temp;
+    T *s_Atz = s_zdiff + NC;
+    /* z_diff = d_rho_mat * d_z */
+    /* z_diff = z_diff - lambda */
+    /* Atx = A.T * z_diff */
+    /* gamma = -g + sigma * x */
+    /* gamma = Atz + gamma */
 
-        // TODO: totally could have messed up NC/NX here
-        for(int i = threadIdx.x; i < NC; i += blockDim.x){
-            s_zdiff[i] = (d_z[i] * d_rho_mat[i]) - d_admm_lambda[i];
-            s_Atz[i] = 0;
-            for(int j = 0; j < NX; j++){
-                s_Atz[i] += d_A[i*NC + j] * s_zdiff[j];
-            }
-            d_gamma[i] = s_Atz[i] + (- d_g[i] + sigma * prob->d_x[i]);
+
+    // TODO: totally could have mixed up NC/NX here
+    for(int i = threadIdx.x + blockIdx.x * blockDim.x; i < NC; i += blockDim.x * gridDim.x){
+        s_zdiff[i] = (d_z[i] * d_rho_mat[i]) - d_admm_lambda[i];
+        s_Atz[i] = 0;
+        for(int j = 0; j < NX; j++){
+            s_Atz[i] += d_A[i*NC + j] * s_zdiff[j];
         }
+        d_gamma[i] = s_Atz[i] + (- d_g[i] + sigma * prob->d_x[i]);
     }
     grid.sync();
-
 
     
     T *S_b, *Pinv_b, *gamma_b, 
@@ -599,27 +597,25 @@ void pcg_dynamic_mem(
     // update z and lambda
     grid.sync();
 
-    if(block_id == 0){
-        T *s_Ax = s_temp;
-        T *s_Axz = s_Ax + NC;
+    T *s_Ax = s_temp;
+    T *s_Axz = s_Ax + NC;
 
-        /* Ax = A * x */
-        /* z = Ax + 1/rho * lambda */
-        /* z = clip(z) */
-        /* Axz = Ax - z*/
-        /* Axz = Axz * rho element-wise */
-        /* lambda = lambda + Axz */
+    /* Ax = A * x */
+    /* z = Ax + 1/rho * lambda */
+    /* z = clip(z) */
+    /* Axz = Ax - z*/
+    /* Axz = Axz * rho element-wise */
+    /* lambda = lambda + Axz */
 
-        for(int i = threadIdx.x; i < NC; i += blockDim.x){
-            s_Ax[i] = 0;
-            for(int j = 0; j < NX; j++){
-                s_Ax[i] += d_A[j*NC + i] * prob->d_x[j];
-            }
-
-            d_z[i] = clip(s_Ax[i] + d_admm_lambda[i] / d_rho_mat[i], d_u[i], d_l[i]);
-            s_Axz[i] = (s_Ax[i] - d_z[i]) * d_rho_mat[i];
-            d_admm_lambda[i] += s_Axz[i];
-
+    for(int i = threadIdx.x + blockIdx.x * blockDim.x; i < NC; i += blockDim.x * gridDim.x){
+        s_Ax[i] = 0;
+        for(int j = 0; j < NX; j++){
+            s_Ax[i] += d_A[j*NC + i] * prob->d_x[j];
         }
+
+        d_z[i] = clip(s_Ax[i] + d_admm_lambda[i] / d_rho_mat[i], d_u[i], d_l[i]);
+        s_Axz[i] = (s_Ax[i] - d_z[i]) * d_rho_mat[i];
+        d_admm_lambda[i] += s_Axz[i];
     }
+
 }
