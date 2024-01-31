@@ -341,7 +341,10 @@ void pcg_dynamic_mem(
     /* gamma = -g + sigma * x */
     /* gamma = Atz + gamma */
 
-
+    for(int i = threadIdx.x + blockIdx.x * blockDim.x; i < NC; i += blockDim.x * gridDim.x){
+        s_zdiff[i] = (d_z[i] * d_rho_mat[i]) - d_admm_lambda[i];
+    }
+    grid.sync();
     for(int i = threadIdx.x + blockIdx.x * blockDim.x; i < NX; i += blockDim.x * gridDim.x){
         s_zdiff[i] = (d_z[i] * d_rho_mat[i]) - d_admm_lambda[i];
         s_Atz[i] = 0;
