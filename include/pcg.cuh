@@ -342,11 +342,10 @@ void pcg_dynamic_mem(
     /* gamma = Atz + gamma */
 
 
-    // TODO: totally could have mixed up NC/NX here
-    for(int i = threadIdx.x + blockIdx.x * blockDim.x; i < NC; i += blockDim.x * gridDim.x){
+    for(int i = threadIdx.x + blockIdx.x * blockDim.x; i < NX; i += blockDim.x * gridDim.x){
         s_zdiff[i] = (d_z[i] * d_rho_mat[i]) - d_admm_lambda[i];
         s_Atz[i] = 0;
-        for(int j = 0; j < NX; j++){
+        for(int j = 0; j < NC; j++){
             s_Atz[i] += d_A[i*NC + j] * s_zdiff[j];
         }
         d_gamma[i] = s_Atz[i] + (- d_g[i] + sigma * prob->d_x[i]);
