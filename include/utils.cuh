@@ -246,29 +246,16 @@ T *get_block_bd_address(uint32_t b_dim, uint32_t m_dim, T *src, unsigned col, un
 template <typename T>
 __device__
 void gato_form_ss_inner(uint32_t state_size, uint32_t knot_points, T *d_S, T *d_Pinv, T *s_temp, unsigned blockrow){
-
-    const uint32_t states_sq = state_size*state_size;
     
     //  STATE OF DEVICE MEM
     //  S:      -Q0_i in spot 00, phik left off-diagonal, thetak main diagonal, phik_T right off-diagonal
     //  Phi:    -Q0 in spot 00, theta_invk main diagonal
     //  gamma:  -Q0_i*q0 spot 0, gammak
 
-    T *s_end = s_temp + states_sq;
 
     T *d_Phi_right_diag = get_block_bd_address<T>(state_size, knot_points, d_Pinv, 2, blockrow);
     T *d_Phi_left_diag = get_block_bd_address<T>(state_size, knot_points, d_Pinv, 0, blockrow);
     T *d_thetaInv_k = get_block_bd_address<T>(state_size, knot_points, d_Pinv, 1, blockrow);
-
-    // // load thetaInv_k
-    // load_block_bd<T>(
-    //     state_size, knot_points,
-    //     d_Pinv,
-    //     s_thetaInv_k,
-    //     1,
-    //     blockrow
-    // );
-    // __syncthreads();//----------------------------------------------------------------
 
 
     if(blockrow!=0){
