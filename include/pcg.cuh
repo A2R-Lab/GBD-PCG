@@ -333,22 +333,20 @@ void pcg_dynamic_mem(
     
     // compute gamma
 
-    T *s_zdiff = s_temp;
-    T *s_Atz = s_zdiff + NC;
-    /* z_diff = d_rho_mat * d_z */
-    /* z_diff = z_diff - lambda */
+    T *s_Atz = s_temp;
+    /* z = d_rho_mat * d_z - lambda */
     /* Atx = A.T * z_diff */
     /* gamma = -g + sigma * x */
     /* gamma = Atz + gamma */
 
     for(int i = threadIdx.x + blockIdx.x * blockDim.x; i < NC; i += blockDim.x * gridDim.x){
-        s_zdiff[i] = (d_z[i] * d_rho_mat[i]) - d_admm_lambda[i];
+        d_z[i] = (d_z[i] * d_rho_mat[i]) - d_admm_lambda[i];
     }
     grid.sync();
     for(int i = threadIdx.x + blockIdx.x * blockDim.x; i < NX; i += blockDim.x * gridDim.x){
         s_Atz[i] = 0;
         for(int j = 0; j < NC; j++){
-            s_Atz[i] += d_A[i*NC + j] * s_zdiff[j];
+            s_Atz[i] += d_A[i*NC + j] * d_z[j];
         }
         d_gamma[i] = s_Atz[i] + (- d_g[i] + sigma * prob->d_x[i]);
     }
