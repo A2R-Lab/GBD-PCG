@@ -314,8 +314,25 @@ T clip(T x, T u, T l){
 template <typename T, uint32_t state_size, uint32_t knot_points>
 __global__
 void pcg_dynamic_mem(
-        T * d_gamma, T * d_g, T * d_A, T* d_admm_lambda, T*d_z, T *d_rho_mat, T sigma, T* d_l, T* d_u,
-         pcg_problem<T> problem
+        T * d_gamma, 
+        T * d_g, 
+        T * d_A, 
+        T* d_admm_lambda, 
+        T*d_z, 
+        T *d_rho_mat, 
+        T sigma, 
+        T* d_l, 
+        T* d_u, 
+        T *d_invE, 
+        T *d_invD, 
+        T *d_H, 
+        T *d_primal_res, 
+        T *d_dual_res, 
+        T *d_primal_normalizer, 
+        T *d_dual_normalizer, 
+        T c,
+        pcg_problem<T> problem,
+        bool compute_residuals
 )
 {       
     const pcg_problem<T> *prob = &problem;
@@ -617,4 +634,124 @@ void pcg_dynamic_mem(
         d_admm_lambda[i] += s_Axz[i];
     }
 
+    // compute residuals and normalizers
+    if(compute_residuals){
+        grid.sync();
+
+        if(block_id == 0){
+            // compute primal residual
+            T *s_invE_Ax_z = s_temp;
+
+            for(int row = threadIdx.x; row < NC; row += blockDim.x){
+                s_invE_Ax_z[row] = 0;
+                for(int col = 0; col < NX; col++){
+                    s_invE_Ax_z[row] += d_A[col*NC + row] * prob->d_x[col];
+                }
+                s_invE_Ax_z[row] -= d_z[row];
+                s_invE_Ax_z[row] *= d_invE[row];
+            }
+            __syncthreads();
+
+            glass::infnorm<T>(NC, s_invE_Ax_z);
+            __syncthreads();
+
+            if(thread_id == 0){ d_primal_res[0] = s_invE_Ax_z[0]; }
+        }
+
+
+        if(block_id == 1 || gridDim.x < 4 && block_id == 0){
+            // compute dual residual
+            T *s_HX_g_AT_lambda = s_temp;
+
+            for(int row = threadIdx.x; row < NX; row += blockDim.x){
+                T Hx_temp = 0;
+                T Atl_temp = 0;
+                for(int col = 0; col < NX; col++){
+                    Hx_temp += d_H[col*NX + row] * prob->d_x[col];
+                }
+                for(int col = 0; col < NC; col++){
+                    Atl_temp += d_A[row*NC + col] * d_admm_lambda[col];
+                }
+                s_HX_g_AT_lambda[row] = d_invD[row] * (Hx_temp + Atl_temp + d_g[row]) / c;
+            }
+            __syncthreads();
+
+            glass::infnorm<T>(NX, s_HX_g_AT_lambda);
+            __syncthreads();
+
+            if(thread_id == 0){ d_dual_res[0] = s_HX_g_AT_lambda[0]; }
+        }
+
+        if(block_id == 2 || gridDim.x < 4 && block_id == 0){
+            // compute primal normalizer
+            
+            T *s_invE_A_x = s_temp;
+            T *s_invE_z = s_invE_A_x + NC;
+
+            /* invE_A_x = invE * Ax */
+            /* invE_z = invE * z */
+            for(int i = threadIdx.x; i < NC; i += blockDim.x){
+                T Ax_temp = 0;
+                for(int col = 0; col < NX; col++){
+                    Ax_temp += d_A[col*NC + i] * prob->d_x[col];
+                }
+                s_invE_A_x[i] = d_invE[i] * Ax_temp;
+                s_invE_z[i] = d_invE[i] * d_z[i];
+            }
+            __syncthreads();
+
+            // get norm(invE*A*x), norm(invE*z)
+            glass::infnorm<T>(NC, s_invE_A_x);
+            glass::infnorm<T>(NC, s_invE_z);
+
+            __syncthreads();
+            if(threadIdx.x == 0)
+            {
+                // primal_normalizer = max(norm(invE*A*x), norm(invE*z), 1e-4)
+                d_primal_normalizer[0] = max( s_invE_A_x[0], max( s_invE_z[0], static_cast<T>(1e-4) ) );
+            }
+        }
+
+        if(block_id == 3 || gridDim.x < 4 && block_id == 0){
+            // compute dual normalizer
+
+            T *s_invD_H_x = s_temp;
+            T *s_invD_g = s_invD_H_x + NX;
+            T *s_invD_At_lambda = s_invD_g + NX;
+
+            // inv_H_x = ( invD * Hx ) / c
+            // invD_g = ( invD * g ) / c
+            // invD_At_lambda = ( invD * Atl ) / c
+            for(int i = threadIdx.x; i < NX; i += blockDim.x){
+                T Hx_temp = 0;
+                T Atl_temp = 0;
+                for(int col = 0; col < NX; col++){
+                    Hx_temp += d_H[col*NX + i] * prob->d_x[col];
+                }
+                for(int col = 0; col < NC; col++){
+                    Atl_temp += d_A[i*NC + col] * d_admm_lambda[col];
+                }
+                s_invD_H_x[i] = (d_invD[i] * Hx_temp) / c;
+                s_invD_g[i] = (d_invD[i] * d_g[i]) / c;
+                s_invD_At_lambda[i] = (d_invD[i] * Atl_temp) / c;
+            }
+            __syncthreads();
+            // get norm(invD*H*x)/c, norm(invD*g)/c, norm(invD*At*lam)/c
+            glass::infnorm<T>(NX, s_invD_H_x);
+            glass::infnorm<T>(NX, s_invD_g);
+            glass::infnorm<T>(NX, s_invD_At_lambda);
+
+            __syncthreads();
+            // dual_normalizer = max(norm(invD*H*x)/c, norm(invD*g)/c, norm(invD*At*lam)/c, 1e-4)
+            if(threadIdx.x==0)
+            {
+                d_dual_normalizer[0] = max( max( max ( s_invD_H_x[0], 
+                                                    s_invD_g[0] ),
+                                                s_invD_At_lambda[0] ),
+                                            static_cast<T>(1e-4) );
+            }
+        }
+
+        grid.sync();
+    }
 }
