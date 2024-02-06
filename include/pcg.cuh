@@ -319,7 +319,8 @@ void pcg_dynamic_mem(
         T * d_A, 
         T* d_admm_lambda, 
         T*d_z, 
-        T *d_rho_mat, 
+        T *d_weight_mat_d,
+        T rho, 
         T sigma, 
         T* d_l, 
         T* d_u, 
@@ -350,22 +351,21 @@ void pcg_dynamic_mem(
     
     // compute gamma
 
-    T *s_Atz = s_temp;
-    /* z = d_rho_mat * d_z - lambda */
+    /* z = d_weight_mat * rho * d_z - lambda */
     /* Atx = A.T * z_diff */
     /* gamma = -g + sigma * x */
     /* gamma = Atz + gamma */
 
     for(int i = threadIdx.x + blockIdx.x * blockDim.x; i < NC; i += blockDim.x * gridDim.x){
-        d_z[i] = (d_z[i] * d_rho_mat[i]) - d_admm_lambda[i];
+        d_z[i] = (d_z[i] * d_weight_mat_d[i] * rho) - d_admm_lambda[i];
     }
     grid.sync();
     for(int i = threadIdx.x + blockIdx.x * blockDim.x; i < NX; i += blockDim.x * gridDim.x){
-        s_Atz[i] = 0;
+        T Atz_i = 0;
         for(int j = 0; j < NC; j++){
-            s_Atz[i] += d_A[i*NC + j] * d_z[j];
+            Atz_i += d_A[i*NC + j] * d_z[j];
         }
-        d_gamma[i] = s_Atz[i] + (- d_g[i] + sigma * prob->d_x[i]);
+        d_gamma[i] = Atz_i + (- d_g[i] + sigma * prob->d_x[i]);
     }
     grid.sync();
 
@@ -629,8 +629,8 @@ void pcg_dynamic_mem(
             s_Ax[i] += d_A[j*NC + i] * prob->d_x[j];
         }
 
-        d_z[i] = clip(s_Ax[i] + d_admm_lambda[i] / d_rho_mat[i], d_u[i], d_l[i]);
-        s_Axz[i] = (s_Ax[i] - d_z[i]) * d_rho_mat[i];
+        d_z[i] = clip(s_Ax[i] + d_admm_lambda[i] / (rho * d_weight_mat_d[i]), d_u[i], d_l[i]);
+        s_Axz[i] = (s_Ax[i] - d_z[i]) * (rho * d_weight_mat_d[i]);
         d_admm_lambda[i] += s_Axz[i];
     }
 
