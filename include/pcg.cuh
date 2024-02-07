@@ -332,6 +332,9 @@ void pcg_dynamic_mem(
         T *d_primal_normalizer, 
         T *d_dual_normalizer, 
         T c,
+        int *d_Acol_ends,
+        int *d_Arow_ends,
+        int *d_Hcol_ends,
         pcg_problem<T> problem,
         bool compute_residuals
 )
@@ -362,7 +365,9 @@ void pcg_dynamic_mem(
     grid.sync();
     for(int i = threadIdx.x + blockIdx.x * blockDim.x; i < NX; i += blockDim.x * gridDim.x){
         T Atz_i = 0;
-        for(int j = 0; j < NC; j++){
+        int start = d_Arow_ends[2*i];
+        int end = d_Arow_ends[2*i+1]+1;
+        for(int j = start; j < end; j++){
             Atz_i += d_A[i*NC + j] * d_z[j];
         }
         d_gamma[i] = Atz_i + (- d_g[i] + sigma * prob->d_x[i]);
@@ -625,7 +630,9 @@ void pcg_dynamic_mem(
 
     for(int i = threadIdx.x + blockIdx.x * blockDim.x; i < NC; i += blockDim.x * gridDim.x){
         s_Ax[i] = 0;
-        for(int j = 0; j < NX; j++){
+        int start = d_Acol_ends[2*i];
+        int end = d_Acol_ends[2*i+1]+1;
+        for(int j = start; j < end; j++){
             s_Ax[i] += d_A[j*NC + i] * prob->d_x[j];
         }
 
@@ -644,7 +651,9 @@ void pcg_dynamic_mem(
 
             for(int row = threadIdx.x; row < NC; row += blockDim.x){
                 s_invE_Ax_z[row] = 0;
-                for(int col = 0; col < NX; col++){
+                int start= d_Acol_ends[2*row];
+                int end = d_Acol_ends[2*row+1]+1;
+                for(int col = start; col < end; col++){
                     s_invE_Ax_z[row] += d_A[col*NC + row] * prob->d_x[col];
                 }
                 s_invE_Ax_z[row] -= d_z[row];
@@ -666,10 +675,14 @@ void pcg_dynamic_mem(
             for(int row = threadIdx.x; row < NX; row += blockDim.x){
                 T Hx_temp = 0;
                 T Atl_temp = 0;
-                for(int col = 0; col < NX; col++){
+                int H_start = d_Hcol_ends[2*row];
+                int H_end = d_Hcol_ends[2*row+1]+1;
+                int A_start = d_Arow_ends[2*row];
+                int A_end = d_Arow_ends[2*row+1]+1;
+                for(int col = H_start; col < H_end; col++){
                     Hx_temp += d_H[col*NX + row] * prob->d_x[col];
                 }
-                for(int col = 0; col < NC; col++){
+                for(int col = A_start; col < A_end; col++){
                     Atl_temp += d_A[row*NC + col] * d_admm_lambda[col];
                 }
                 s_HX_g_AT_lambda[row] = d_invD[row] * (Hx_temp + Atl_temp + d_g[row]) / c;
@@ -692,7 +705,9 @@ void pcg_dynamic_mem(
             /* invE_z = invE * z */
             for(int i = threadIdx.x; i < NC; i += blockDim.x){
                 T Ax_temp = 0;
-                for(int col = 0; col < NX; col++){
+                int start = d_Acol_ends[2*i];
+                int end = d_Acol_ends[2*i+1]+1;
+                for(int col = start; col < end; col++){
                     Ax_temp += d_A[col*NC + i] * prob->d_x[col];
                 }
                 s_invE_A_x[i] = d_invE[i] * Ax_temp;
@@ -725,10 +740,14 @@ void pcg_dynamic_mem(
             for(int i = threadIdx.x; i < NX; i += blockDim.x){
                 T Hx_temp = 0;
                 T Atl_temp = 0;
-                for(int col = 0; col < NX; col++){
+                int H_start = d_Hcol_ends[2*i];
+                int H_end = d_Hcol_ends[2*i+1]+1;
+                int A_start = d_Arow_ends[2*i];
+                int A_end = d_Arow_ends[2*i+1]+1;
+                for(int col = H_start; col < H_end; col++){
                     Hx_temp += d_H[col*NX + i] * prob->d_x[col];
                 }
-                for(int col = 0; col < NC; col++){
+                for(int col = A_start; col < A_end; col++){
                     Atl_temp += d_A[i*NC + col] * d_admm_lambda[col];
                 }
                 s_invD_H_x[i] = (d_invD[i] * Hx_temp) / c;
