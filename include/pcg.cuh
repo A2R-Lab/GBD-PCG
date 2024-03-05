@@ -65,7 +65,8 @@ void pcg(
          uint32_t *d_iters, 
          bool *d_max_iter_exit,
          uint32_t max_iter, 
-         float exit_tol)
+         T exit_tol, 
+		 int empty_pinv)
 {   
 
     const cgrps::thread_block block = cgrps::this_thread_block();	 
@@ -77,6 +78,22 @@ void pcg(
     const uint32_t states_sq = state_size * state_size;
 
     extern __shared__ T s_temp[];
+    
+    // If empty pinv, Load Pinv from Schur
+
+	/* TODO: Check pinv before after for correctness*/
+	if(empty_pinv){
+		for(unsigned ind=blockIdx.x; ind<knot_points; ind+=gridDim.x){
+			gato_ss_from_schur<T>(
+				state_size, knot_points,
+				d_S,
+				d_Pinv,
+				s_temp,
+				ind
+			);
+		}
+		grid.sync();
+	}
 
     //
     // complete Pinv
@@ -86,7 +103,6 @@ void pcg(
             state_size, knot_points,
             d_S,
             d_Pinv,
-            d_gamma,
             s_temp,
             ind
         );
@@ -164,61 +180,72 @@ void pcg(
     
 
     // MAIN PCG LOOP
-    for(iter = 0; iter < max_iter; iter++){
+	if (abs(eta) > exit_tol) {
+		for(iter = 0; iter < max_iter; iter++){
 
-        // upsilon = S * p
-        loadbdVec<T, state_size, knot_points-1>(s_p, block_id, &d_p[block_x_statesize]);
-        __syncthreads();
-        bdmv<T>(s_upsilon,  s_S, s_p,state_size, knot_points-1, block_id);
-        __syncthreads();
+			// upsilon = S * p
+			loadbdVec<T, state_size, knot_points-1>(s_p, block_id, &d_p[block_x_statesize]);
+			__syncthreads();
+			bdmv<T>(s_upsilon,  s_S, s_p,state_size, knot_points-1, block_id);
+			__syncthreads();
 
-        // alpha = eta / p * upsilon
-        glass::dot<T, state_size>(s_v_b, s_p_b, s_upsilon);
-        __syncthreads();
-        if(thread_id == 0){ d_v_temp[block_id] = s_v_b[0]; }
-        grid.sync(); //-------------------------------------
-        glass::reduce<T, knot_points>(s_v_b, d_v_temp);
-        __syncthreads();
-        alpha = eta / s_v_b[0];
-        // lambda = lambda + alpha * p
-        // r = r - alpha * upsilon
-        for(uint32_t ind = thread_id; ind < state_size; ind += block_dim){
-            s_lambda_b[ind] += alpha * s_p_b[ind];
-            s_r_b[ind] -= alpha * s_upsilon[ind];
-            d_r[block_x_statesize + ind] = s_r_b[ind];
-        }
+			// alpha = eta / p * upsilon
+			glass::dot<T, state_size>(s_v_b, s_p_b, s_upsilon);
+			__syncthreads();
+			if(thread_id == 0){ d_v_temp[block_id] = s_v_b[0]; }
+			grid.sync(); //-------------------------------------
+			glass::reduce<T, knot_points>(s_v_b, d_v_temp);
+			__syncthreads();
 
-        grid.sync(); //-------------------------------------
+			// HERE
+			if(s_v_b[0] == 0)
+				break;
+			alpha = eta / s_v_b[0];
+			// lambda = lambda + alpha * p
+			// r = r - alpha * upsilon
+			for(uint32_t ind = thread_id; ind < state_size; ind += block_dim){
+				s_lambda_b[ind] += alpha * s_p_b[ind];
+				s_r_b[ind] -= alpha * s_upsilon[ind];
+				d_r[block_x_statesize + ind] = s_r_b[ind];
+			}
 
-        // r_tilde = Pinv * r
-        loadbdVec<T, state_size, knot_points-1>(s_r, block_id, &d_r[block_x_statesize]);
-        __syncthreads();
-        bdmv<T>(s_r_tilde, s_Pinv, s_r, state_size, knot_points-1, block_id);
-        __syncthreads();
+			grid.sync(); //-------------------------------------
 
-        // eta = r * r_tilde
-        glass::dot<T, state_size>(s_eta_new_b, s_r_b, s_r_tilde);
-        __syncthreads();
-        if(thread_id == 0){ d_eta_new_temp[block_id] = s_eta_new_b[0]; }
-        grid.sync(); //-------------------------------------
-        glass::reduce<T, knot_points>(s_eta_new_b, d_eta_new_temp);
-        __syncthreads();
-        eta_new = s_eta_new_b[0];
+			// r_tilde = Pinv * r
+			loadbdVec<T, state_size, knot_points-1>(s_r, block_id, &d_r[block_x_statesize]);
+			__syncthreads();
+			bdmv<T>(s_r_tilde, s_Pinv, s_r, state_size, knot_points-1, block_id);
+			__syncthreads();
 
-        if(abs(eta_new) < exit_tol){ iter++; max_iter_exit = false; break; }
+			// eta = r * r_tilde
+			glass::dot<T, state_size>(s_eta_new_b, s_r_b, s_r_tilde);
+			__syncthreads();
+			if(thread_id == 0){ d_eta_new_temp[block_id] = s_eta_new_b[0]; }
+			grid.sync(); //-------------------------------------
+			glass::reduce<T, knot_points>(s_eta_new_b, d_eta_new_temp);
+			__syncthreads();
+			eta_new = s_eta_new_b[0];
 
-        // beta = eta_new / eta
-        // eta = eta_new
-        beta = eta_new / eta;
-        eta = eta_new;
+			if(abs(eta_new) < exit_tol){ iter++; max_iter_exit = false; break; }
 
-        // p = r_tilde + beta*p
-        for(uint32_t ind = thread_id; ind < state_size; ind += block_dim){
-            s_p_b[ind] = s_r_tilde[ind] + beta*s_p_b[ind];
-            d_p[block_x_statesize + ind] = s_p_b[ind];
-        }
-        grid.sync(); //-------------------------------------
-    }
+			// beta = eta_new / eta
+			// eta = eta_new
+
+			// HERE
+
+			if(eta == 0)
+				break;
+			beta = eta_new / eta;
+			eta = eta_new;
+
+			// p = r_tilde + beta*p
+			for(uint32_t ind = thread_id; ind < state_size; ind += block_dim){
+				s_p_b[ind] = s_r_tilde[ind] + beta*s_p_b[ind];
+				d_p[block_x_statesize + ind] = s_p_b[ind];
+			}
+			grid.sync(); //-------------------------------------
+		}
+	}
 
     // save output
     if(block_id == 0 && thread_id == 0){ d_iters[0] = iter; d_max_iter_exit[0] = max_iter_exit; }

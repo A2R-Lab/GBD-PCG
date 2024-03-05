@@ -2,50 +2,9 @@
 #include <stdint.h>
 #include <cooperative_groups.h>
 #include "types.cuh"
+#include "glass.cuh"
 
 namespace cgrps = cooperative_groups;
-
-// template <typename T>
-// __device__
-// void loadbdVec(T *s_var, 
-//                uint32_t block_dim, 
-//                uint32_t block_id,
-//                uint32_t max_block_id, 
-//                T *d_var_b, 
-//                cgrps::thread_block b)
-// {
-
-//     cgrps::thread_group tile = cgrps::tiled_partition(b, 32);
-//     uint32_t tileId = b.thread_rank() / 32;
-
-//     if(tileId == 0){
-//         // Need to load b also now
-//         for (unsigned ind = tile.thread_rank(); ind < block_dim; ind += tile.size()){
-//             s_var[ind + block_dim] = *(d_var_b + ind); 
-//         }
-//     }
-//     if(tileId == 1 || b.size() < 33){
-//         if(block_id == 0){
-//             for (unsigned ind = tile.thread_rank(); ind < block_dim; ind += tile.size()){
-//                 s_var[ind + 2*block_dim] = *(d_var_b + block_dim + ind); 
-//             }
-//         }
-//         else if (block_id == max_block_id){
-//             for (unsigned ind = tile.thread_rank(); ind < block_dim; ind += tile.size()){
-//                 s_var[ind] = *(d_var_b - block_dim + ind);
-//             }
-//         }
-//         else{
-//             T *dst, *src;
-//             for (unsigned ind = tile.thread_rank(); ind < 2*block_dim; ind += tile.size()){
-//                 dst = s_var + ind + (ind >= block_dim) * block_dim;
-//                 src = d_var_b + ind - (ind < block_dim) * block_dim;
-//                 *dst = *src;
-//             }
-//         }
-//     }
-// }
-
 
 template <typename T, uint32_t block_dim, uint32_t max_block_id>
 __device__
@@ -255,7 +214,7 @@ void store_block_bd(uint32_t b_dim, uint32_t m_dim, T *src, T *dst, unsigned col
 
     template <typename T>
     __device__
-    void gato_form_ss_inner(uint32_t state_size, uint32_t knot_points, T *d_S, T *d_Pinv, T *d_gamma, T *s_temp, unsigned blockrow){
+    void gato_form_ss_inner(uint32_t state_size, uint32_t knot_points, T *d_S, T *d_Pinv, T *s_temp, unsigned blockrow){
 
         const uint32_t states_sq = state_size*state_size;
         
@@ -413,5 +372,76 @@ void store_block_bd(uint32_t b_dim, uint32_t m_dim, T *src, T *dst, unsigned col
             );
 
         }
+    }
+
+template <typename T>
+    __device__ __forceinline__
+    void loadIdentity(uint32_t DIM, T *A){
+        for (unsigned ind = threadIdx.x; ind < DIM*DIM; ind += blockDim.x){
+            unsigned r, c;
+            r = ind % DIM; 
+            c = ind / DIM;
+            A[ind] = static_cast<T>(r == c);
+        }
+    }
+
+
+/*
+ STATE OF S
+        //  S:      -Q0_i in spot 00, phik left off-diagonal, thetak main diagonal, phik_T right off-diagonal
+
+ MAKE STATE OF PHI
+        //  Phi:    -Q0 in spot 00, theta_invk main diagonal
+
+*/
+ template <typename T>
+    __device__
+    void gato_ss_from_schur(uint32_t state_size, uint32_t knot_points, T *d_S, T *d_Pinv, T *s_temp, unsigned blockrow){
+
+	const uint32_t states_sq = state_size*state_size;
+	T *s_diag = s_temp;
+	T *s_diag_i = s_temp + states_sq;
+	T *s_scratch = s_diag_i + states_sq; 
+
+	/* Load diag S*/
+	load_block_bd<T>(
+            state_size, knot_points,
+            d_S,
+            s_diag,
+            1,
+            blockrow
+        );
+
+
+	__syncthreads();//----------------------------------------------------------------
+
+
+	/* Invert diag S*/
+
+	loadIdentity<T>( state_size, s_diag_i);
+
+	__syncthreads();//----------------------------------------------------------------
+
+	glass::invertMatrix<T>(
+		state_size,
+		s_diag,
+		s_scratch
+	);
+
+	__syncthreads();//----------------------------------------------------------------
+
+
+	/* Store in Pinv*/
+	store_block_bd<T>(
+                state_size, knot_points,
+                s_diag_i, 
+                d_Pinv,
+                1,
+                blockrow,
+                1
+        );
+
+	__syncthreads();//----------------------------------------------------------------
+
     }
 
