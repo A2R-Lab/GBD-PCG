@@ -1,7 +1,7 @@
 NVCC = nvcc
 CFLAGS = --compiler-options -Wall  -O3 -I../include -I../GLASS  
 
-examples: pcg.exe pcg_dp.exe
+examples: pcg.exe pcg_dp.exe pcg_many.exe
 
 
 pcg.exe:
