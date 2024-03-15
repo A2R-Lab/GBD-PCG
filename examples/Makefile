@@ -10,5 +10,8 @@ pcg.exe:
 pcg_dp.exe:
 	$(NVCC) $(CFLAGS) -DKNOT_POINTS=3 -DSTATE_SIZE=2 pcg_solve.cu -o pcg_dp.exe 
 
+pcg_many.exe:
+	$(NVCC) $(CFLAGS) -DKNOT_POINTS=30 -DSTATE_SIZE=2 pcg_multisolve.cu -o pcg_many.exe 
+
 clean:
 	rm -rf *.exe
