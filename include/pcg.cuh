@@ -40,7 +40,7 @@ bool checkPcgOccupancy(void* kernel, dim3 block, uint32_t state_size, uint32_t k
     int numBlocksPerSm;
     gpuErrchk(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, kernel, block.x*block.y*block.z, smem_size));
 
-    if(knot_points > numProcs*numBlocksPerSm){
+    if((int) knot_points > numProcs*numBlocksPerSm){
         printf("Too many knot points ([%d]). Device supports [%d] active blocks, over [%d] SMs.\n", knot_points, numProcs*numBlocksPerSm, numProcs);
         exit(6);
     }
@@ -77,21 +77,6 @@ void pcg(
     const uint32_t states_sq = state_size * state_size;
 
     extern __shared__ T s_temp[];
-
-    //
-    // complete Pinv
-    //
-    for(unsigned ind=blockIdx.x; ind<knot_points; ind+=gridDim.x){
-        gato_form_ss_inner<T>(
-            state_size, knot_points,
-            d_S,
-            d_Pinv,
-            d_gamma,
-            s_temp,
-            ind
-        );
-    }
-    grid.sync();
 
 
     T  *s_S = s_temp;
@@ -158,7 +143,7 @@ void pcg(
     glass::dot<T, state_size>(s_eta_new_b, s_r_b, s_r_tilde);
     if(thread_id == 0){ d_eta_new_temp[block_id] = s_eta_new_b[0]; }
     grid.sync(); //-------------------------------------
-    glass::reduce<T, knot_points>(s_eta_new_b, d_eta_new_temp);
+    glass::reduce<T>(s_eta_new_b, knot_points, d_eta_new_temp);
     __syncthreads();
     eta = s_eta_new_b[0];
     
@@ -177,7 +162,7 @@ void pcg(
         __syncthreads();
         if(thread_id == 0){ d_v_temp[block_id] = s_v_b[0]; }
         grid.sync(); //-------------------------------------
-        glass::reduce<T, knot_points>(s_v_b, d_v_temp);
+        glass::reduce<T>(s_v_b, knot_points, d_v_temp);
         __syncthreads();
         alpha = eta / s_v_b[0];
         // lambda = lambda + alpha * p
@@ -201,7 +186,7 @@ void pcg(
         __syncthreads();
         if(thread_id == 0){ d_eta_new_temp[block_id] = s_eta_new_b[0]; }
         grid.sync(); //-------------------------------------
-        glass::reduce<T, knot_points>(s_eta_new_b, d_eta_new_temp);
+        glass::reduce<T>(s_eta_new_b, knot_points, d_eta_new_temp);
         __syncthreads();
         eta_new = s_eta_new_b[0];
 
