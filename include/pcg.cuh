@@ -78,21 +78,6 @@ void pcg(
 
     extern __shared__ T s_temp[];
 
-    //
-    // complete Pinv
-    //
-    for(unsigned ind=blockIdx.x; ind<knot_points; ind+=gridDim.x){
-        gato_form_ss_inner<T>(
-            state_size, knot_points,
-            d_S,
-            d_Pinv,
-            d_gamma,
-            s_temp,
-            ind
-        );
-    }
-    grid.sync();
-
 
     T  *s_S = s_temp;
     T  *s_Pinv = s_S +3*states_sq;
