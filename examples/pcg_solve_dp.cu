@@ -11,7 +11,7 @@ int main(){
     const uint32_t state_size = 2;
     const uint32_t knot_points = 3;
 
-    float h_S[36] = {0,0,0,0,
+    double h_S[36] = {0,0,0,0,
                      -.999, 0, 0, -.999,
                      .999, .0999, -.98, .999,
                      .999, -.98, .0999, .999,
@@ -21,12 +21,12 @@ int main(){
                      -1.019, .8801, .8801, -2.0694,
                      0,0,0,0};
     
-    float h_gamma[6] = {3.1385, 0, 0, 3.0788, .0031, 3.0788};
-    float h_lambda[6] = {0,0,0,0,0,0};
+    double h_gamma[6] = {3.1385, 0, 0, 3.0788, .0031, 3.0788};
+    double h_lambda[6] = {0,0,0,0,0,0};
 
 
-    struct pcg_config<float> config;
-    uint32_t res = solvePCG<float>(h_S,
+    struct pcg_config<double> config;
+    uint32_t res = solvePCG<double>(h_S,
 									h_gamma,
 									h_lambda,
 									state_size,

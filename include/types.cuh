@@ -15,16 +15,21 @@ struct csr_t{
 };
 
 
-typedef struct pcg_config{
-    float pcg_exit_tol;
+template <typename T>
+struct pcg_config{
+	
+    T pcg_exit_tol;
     uint32_t pcg_max_iter;
 
     dim3 pcg_grid;
     dim3 pcg_block;
 
-    pcg_config(float    exit_tol = pcg_constants::DEFAULT_EPSILON, 
+	int empty_pinv;
+
+    pcg_config(T    exit_tol = pcg_constants::DEFAULT_EPSILON<T>, 
                uint32_t max_iter = pcg_constants::DEFAULT_MAX_PCG_ITER, 
                dim3     grid = pcg_constants::DEFAULT_GRID, 
-               dim3     block = pcg_constants::DEFAULT_BLOCK)             
-        : pcg_exit_tol(exit_tol), pcg_max_iter(max_iter), pcg_grid(grid), pcg_block(block) {}
-} pcg_config;
+               dim3     block = pcg_constants::DEFAULT_BLOCK,
+			   int 		empty_pinv = 1)             
+        : pcg_exit_tol(exit_tol), pcg_max_iter(max_iter), pcg_grid(grid), pcg_block(block), empty_pinv(empty_pinv) {}
+};
