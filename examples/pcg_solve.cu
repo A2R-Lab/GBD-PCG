@@ -20,6 +20,12 @@ int main(){
                      .999, -.98, .0999, .999,
                      -1.019, .8801, .8801, -2.0694,
                      0,0,0,0};
+    float h_Pinv[36];
+    // initialize Pinv with some arbitrary values
+    for (int i=0; i<36; i++){
+        if (h_S[i] == 0){ h_Pinv[i] = 0; }
+        else { h_Pinv[i] = 1 / h_S[i]; }
+    }
     
     float h_gamma[6] = {3.1385, 0, 0, 3.0788, .0031, 3.0788};
     float h_lambda[6] = {0,0,0,0,0,0};
@@ -27,6 +33,7 @@ int main(){
 
     struct pcg_config<float> config;
     uint32_t res = solvePCG<float>(h_S,
+                                    h_Pinv,
 									h_gamma,
 									h_lambda,
 									state_size,

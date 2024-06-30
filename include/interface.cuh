@@ -24,6 +24,7 @@ uint32_t solvePCG(
 template <typename T>
 uint32_t solvePCG(
     T *h_S, 
+    T *h_Pinv, 
     T *h_gamma, 
     T *h_lambda, 
     unsigned stateSize, 
@@ -53,8 +54,9 @@ uint32_t solvePCG(
     gpuErrchk(cudaMalloc(&d_eta_new_temp, knotPoints*sizeof(T)));
 
 
-	/* Copy s, gamma, lambda*/
+	/* Copy s, gamma, lambda, Pinv*/
 	gpuErrchk(cudaMemcpy(d_S, h_S, 3 * states_sq * knotPoints * sizeof(T), cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMemcpy(d_Pinv, h_Pinv, 3 * states_sq * knotPoints * sizeof(T), cudaMemcpyHostToDevice));
 	gpuErrchk(cudaMemcpy(d_lambda, h_lambda, stateSize * knotPoints * sizeof(T), cudaMemcpyHostToDevice));
 	gpuErrchk(cudaMemcpy(d_gamma, h_gamma, stateSize * knotPoints * sizeof(T), cudaMemcpyHostToDevice));
 
