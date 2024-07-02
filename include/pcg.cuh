@@ -14,7 +14,7 @@ template <typename T>
 size_t pcgSharedMemSize(uint32_t state_size, uint32_t knot_points){
     return sizeof(T) * max(
                         (2*3*state_size*state_size + 
-                        10 * state_size + 
+                        12 * state_size +
                         2*max(state_size, knot_points)),
                         (9 * state_size*state_size));
 }
