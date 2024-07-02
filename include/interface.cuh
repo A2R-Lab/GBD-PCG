@@ -4,6 +4,11 @@
 #include "gpuassert.cuh"
 #include "types.cuh"
 #include "pcg.cuh"
+#include <ctime>
+
+#define tic      double tic_t = clock();
+#define toc      std::cout << (clock() - tic_t)/CLOCKS_PER_SEC \
+                           << " seconds" << std::endl;
 
 template <typename T>
 uint32_t solvePCG(
@@ -61,16 +66,16 @@ uint32_t solvePCG(
 	gpuErrchk(cudaMemcpy(d_gamma, h_gamma, stateSize * knotPoints * sizeof(T), cudaMemcpyHostToDevice));
 
 
-	solvePCG(stateSize, knotPoints,
-                  d_S,
-                  d_Pinv,
-                  d_gamma,
-                  d_lambda,
-                  d_r,
-                  d_p,
-                  d_v_temp,
-                  d_eta_new_temp,
-                  config);
+    uint32_t pcg_iters = solvePCG(stateSize, knotPoints,
+                                  d_S,
+                                  d_Pinv,
+                                  d_gamma,
+                                  d_lambda,
+                                  d_r,
+                                  d_p,
+                                  d_v_temp,
+                                  d_eta_new_temp,
+                                  config);
 
 
     /* Copy data back */
@@ -87,7 +92,7 @@ uint32_t solvePCG(
 	cudaFree(d_v_temp);
 	cudaFree(d_eta_new_temp);
 
-	return 1;
+    return pcg_iters;
 }
 
 
@@ -131,7 +136,9 @@ uint32_t solvePCG(const uint32_t state_size,
 
     size_t ppcg_kernel_smem_size = pcgSharedMemSize<T>(state_size, knot_points);
 
-    gpuErrchk(cudaLaunchCooperativeKernel(pcg_kernel, knot_points, pcg_constants::DEFAULT_BLOCK, kernelArgs, ppcg_kernel_smem_size));    
+    tic
+    gpuErrchk(cudaLaunchCooperativeKernel(pcg_kernel, knot_points, pcg_constants::DEFAULT_BLOCK, kernelArgs, ppcg_kernel_smem_size));
+    toc
     gpuErrchk(cudaPeekAtLastError());
 
 

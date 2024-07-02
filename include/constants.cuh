@@ -12,9 +12,9 @@
 
 
 namespace pcg_constants{
-    uint32_t DEFAULT_MAX_PCG_ITER = 25;
+    uint32_t DEFAULT_MAX_PCG_ITER = 1000;
 	template<typename T>
-    T DEFAULT_EPSILON = 1e-6;
+    T DEFAULT_EPSILON = 1e-8;
     dim3 DEFAULT_GRID(128);
     dim3 DEFAULT_BLOCK(64);
 }

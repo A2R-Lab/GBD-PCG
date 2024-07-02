@@ -5,6 +5,11 @@
 #include "gpuassert.cuh"
 #include "types.cuh"
 #include "pcg_block.cuh"
+#include <ctime>
+
+#define tic      double tic_t = clock();
+#define toc      std::cout << (clock() - tic_t)/CLOCKS_PER_SEC \
+                           << " seconds" << std::endl;
 
 /* TODO: have a interface for accepting h_S in other formats*/
 template<typename T>
@@ -53,18 +58,18 @@ uint32_t solvePCGBlock(
     gpuErrchk(cudaMemcpy(d_gamma, h_gamma, stateSize * knotPoints * sizeof(T), cudaMemcpyHostToDevice));
 
 
-    solvePCGBlock(stateSize, knotPoints,
-                  d_Sdb,
-                  d_Sob,
-                  d_Pinvdb,
-                  d_Pinvob,
-                  d_gamma,
-                  d_lambda,
-                  d_r,
-                  d_p,
-                  d_v_temp,
-                  d_eta_new_temp,
-                  config);
+    uint32_t pcg_iters = solvePCGBlock(stateSize, knotPoints,
+                                       d_Sdb,
+                                       d_Sob,
+                                       d_Pinvdb,
+                                       d_Pinvob,
+                                       d_gamma,
+                                       d_lambda,
+                                       d_r,
+                                       d_p,
+                                       d_v_temp,
+                                       d_eta_new_temp,
+                                       config);
 
 
     /* Copy data back */
@@ -82,7 +87,7 @@ uint32_t solvePCGBlock(
     cudaFree(d_v_temp);
     cudaFree(d_eta_new_temp);
 
-    return 1;
+    return pcg_iters;
 }
 
 
@@ -129,11 +134,10 @@ uint32_t solvePCGBlock(const uint32_t state_size,
 
     size_t ppcg_kernel_smem_size = pcgBlockSharedMemSize<T>(state_size, knot_points);
 
+    tic
     gpuErrchk(cudaLaunchCooperativeKernel(pcg_kernel, knot_points, pcg_constants::DEFAULT_BLOCK, kernelArgs,
                                           ppcg_kernel_smem_size));
-    gpuErrchk(cudaPeekAtLastError());
-
-
+    toc
     gpuErrchk(cudaMemcpy(&h_pcg_iters, d_pcg_iters, sizeof(uint32_t), cudaMemcpyDeviceToHost));
 
 

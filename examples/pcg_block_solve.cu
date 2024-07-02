@@ -2,34 +2,32 @@
 #include <stdio.h>
 #include "gpu_pcg.cuh"
 #include "gpuassert.cuh"
+#include "read_array.h"
 
 
-int main() {
+int main(int argc, char *argv[]) {
 
-    const uint32_t state_size = 2;
-    const uint32_t knot_points = 3;
+    const uint32_t state_size = STATE_SIZE;
+    const uint32_t knot_points = KNOT_POINTS;
+    const int matrix_size = 2 * knot_points * state_size * state_size;
+    const int vector_size = state_size * knot_points;
 
-    // identity preconditioner Pinv
-    float h_Pinvob[24] = {1, 0, 0, 1,
-                          1, 0, 0, 1,
-                          1, 0, 0, 1,
-                          1, 0, 0, 1,
-                          1, 0, 0, 1,
-                          1, 0, 0, 1};
-    float h_Pinvdb[6] = {1, 1, 1, 1, 1, 1};
+    float h_Pinvob[matrix_size];
+    float h_Pinvdb[vector_size];
+    float h_Sob[matrix_size];
+    float h_Sdb[vector_size];
 
-    float h_Sob[24] = {0, 0, 0, 0,
-                       -1, 0.1, 0.2, -0.5,
-                       -1, 0.2, 0.1, -0.5,
-                       -0.8, 0.2, 0.1, -0.9,
-                       -0.8, 0.1, 0.2, -0.9,
-                       0, 0, 0, 0};
-    float h_Sdb[6] = {2, 3, 1, 1, 5, 4};
+    readArrayFromFile(matrix_size, "data/Pob.txt", h_Pinvob);
+    readArrayFromFile(vector_size, "data/Pdb.txt", h_Pinvdb);
+    readArrayFromFile(matrix_size, "data/Sob.txt", h_Sob);
+    readArrayFromFile(vector_size, "data/Sdb.txt", h_Sdb);
 
-
-    float h_gamma[6] = {1, 1, 1, 1, 1, 1};
-    float h_lambda[6] = {0, 0, 0, 0, 0, 0};
-
+    float h_gamma[vector_size];
+    readArrayFromFile(vector_size, "data/gamma_tilde.txt", h_gamma);
+    float h_lambda[vector_size];
+    for (int i = 0; i < vector_size; i++) {
+        h_lambda[i] = 0;
+    }
 
     struct pcg_config<float> config;
     uint32_t res = solvePCGBlock<float>(h_Sdb,
@@ -43,11 +41,11 @@ int main() {
                                         &config);
 
     std::cout << "GBD-PCG-Block returned in " << res << " iters." << std::endl;
-    std::cout << "Lambda: " << std::endl;
-    for (int i = 0; i < 6; i++) {
-        std::cout << h_lambda[i] << " ";
+    float norm = 0;
+    for (int i = 0; i < vector_size; i++) {
+        norm += h_lambda[i] * h_lambda[i];
     }
-    std::cout << std::endl;
+    std::cout << "Lambda norm: " << sqrt(norm) << std::endl;
 
     return 0;
 }

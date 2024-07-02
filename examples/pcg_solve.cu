@@ -2,54 +2,42 @@
 #include <stdio.h>
 #include "gpu_pcg.cuh"
 #include "gpuassert.cuh"
+#include "read_array.h"
 
 
+int main() {
 
+    const uint32_t state_size = STATE_SIZE;
+    const uint32_t knot_points = KNOT_POINTS;
+    const int matrix_size = 3 * knot_points * state_size * state_size;
+    const int vector_size = state_size * knot_points;
 
-int main(){
+    float h_Pinv[matrix_size];
+    float h_S[matrix_size];
+    readArrayFromFile(matrix_size, "data/S.txt", h_S);
+    readArrayFromFile(matrix_size, "data/P.txt", h_Pinv);
 
-    const uint32_t state_size = 2;
-    const uint32_t knot_points = 3;
-
-    float h_Pinv[36] ={1, 0, 0, 1,
-                       1, 0, 0, 1,
-                       1, 0, 0, 1,
-                       1, 0, 0, 1,
-                       1, 0, 0, 1,
-                       1, 0, 0, 1,
-                       1, 0, 0, 1,
-                       1, 0, 0, 1,
-                       1, 0, 0, 1};
-
-    float h_S[36] = {0,0,0,0,
-                     2, 0, 0, 3,
-                     -1, 0.1, 0.2, -0.5,
-                     -1, 0.2, 0.1, -0.5,
-                     1, 0, 0 ,1,
-                     -0.8, 0.2, 0.1, -0.9,
-                     -0.8, 0.1, 0.2, -0.9,
-                     5, 0, 0, 4,
-                     0,0,0,0};
-    
-    float h_gamma[6] = {1, 1, 1, 1, 1, 1};
-    float h_lambda[6] = {0,0,0,0,0,0};
-
-
+    float h_gamma[vector_size];
+    readArrayFromFile(vector_size, "data/gamma.txt", h_gamma);
+    float h_lambda[vector_size];
+    for (int i = 0; i < vector_size; i++) {
+        h_lambda[i] = 0;
+    }
     struct pcg_config<float> config;
     uint32_t res = solvePCG<float>(h_S,
-                                    h_Pinv,
-									h_gamma,
-									h_lambda,
-									state_size,
-									knot_points,
-									&config);
+                                   h_Pinv,
+                                   h_gamma,
+                                   h_lambda,
+                                   state_size,
+                                   knot_points,
+                                   &config);
 
     std::cout << "GBD-PCG returned in " << res << " iters." << std::endl;
-    std::cout << "Lambda: " << std::endl;
-    for(int i = 0; i < 6; i++){
-        std::cout << h_lambda[i] << " ";
+    float norm = 0;
+    for (int i = 0; i < vector_size; i++) {
+        norm += h_lambda[i] * h_lambda[i];
     }
-    std::cout << std::endl;
+    std::cout << "Lambda norm: " << sqrt(norm) << std::endl;
 
     return 0;
 }
