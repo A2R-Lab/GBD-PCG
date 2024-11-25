@@ -160,3 +160,37 @@ void store_block_bd(uint32_t b_dim, uint32_t m_dim, T *src, T *dst, unsigned col
     }
 }
 
+
+template <typename T>
+__device__
+void loadbdVecDynamic(T *s_var, 
+                      const uint32_t block_id,
+                      T *d_var_b,
+                      uint32_t state_size,
+                      uint32_t max_block_id)
+{
+    // Need to load b also now
+    for (unsigned ind = threadIdx.x; ind < state_size; ind += blockDim.x){
+        s_var[ind + state_size] = *(d_var_b + ind); 
+    }
+    
+    if(block_id == 0){
+        for (unsigned ind = threadIdx.x; ind < state_size; ind += blockDim.x){
+            s_var[ind + 2*state_size] = *(d_var_b + state_size + ind); 
+        }
+    }
+    else if (block_id == max_block_id){
+        for (unsigned ind = threadIdx.x; ind < state_size; ind += blockDim.x){
+            s_var[ind] = *(d_var_b - state_size + ind);
+        }
+    }
+    else{
+        T *dst, *src;
+        for (unsigned ind = threadIdx.x; ind < 2*state_size; ind += blockDim.x){
+            dst = s_var + ind + (ind >= state_size) * state_size;
+            src = d_var_b + ind - (ind < state_size) * state_size;
+            *dst = *src;
+        }
+    }
+}
+
