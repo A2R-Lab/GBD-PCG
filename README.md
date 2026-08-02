@@ -1,5 +1,14 @@
 # GBD-PCG
 
+> ## ⚠️ Retired — development continues in MPCGPU
+>
+> As of 2026-08, GBD-PCG has been **folded into the
+> [MPCGPU](https://github.com/A2R-Lab/MPCGPU) repository** (the `GBD-PCG/`
+> directory there, full commit history preserved), where it is covered by
+> MPCGPU's signed GPU-proof gate suite and shares a single GLASS pin.
+> **This standalone repo is no longer updated** — the latest solver lives in
+> MPCGPU. The citation below remains the correct one for the solver.
+
 GBD-PCG is a **cooperative, grid-wide** preconditioned conjugate gradient solver for the
 block-tridiagonal Schur-complement systems that arise in trajectory optimization. It is the
 linear-system solver used by [MPCGPU](https://arxiv.org/abs/2309.08079). It solves
