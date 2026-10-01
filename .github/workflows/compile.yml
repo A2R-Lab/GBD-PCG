@@ -1,0 +1,29 @@
+name: compile
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# GitHub runners have no GPU. This job proves the headers and examples compile against the
+# pinned GLASS submodule, and that GLASS_DIR can point a consumer's own GLASS checkout at them.
+# Running the examples needs a GPU: see test/run_gates.sh.
+jobs:
+  nvcc:
+    runs-on: ubuntu-latest
+    container: nvidia/cuda:12.8.1-devel-ubuntu24.04
+    steps:
+      - run: apt-get update && apt-get install -y --no-install-recommends git make ca-certificates
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Compile against the GLASS submodule (default GLASS_DIR)
+        run: make -C examples examples ARCH=sm_120 STATE_SIZE=14 KNOT_POINTS=32
+      - name: Compile a small configuration through an explicit GLASS_DIR
+        run: |
+          make -C examples clean
+          make -C examples examples GLASS_DIR="$PWD/GLASS" ARCH=sm_120 STATE_SIZE=6 KNOT_POINTS=8
+      - name: GLASS_DIR without glass.cuh is refused
+        run: |
+          make -C examples clean
+          if make -C examples examples GLASS_DIR=/nonexistent ARCH=sm_120; then exit 1; fi
